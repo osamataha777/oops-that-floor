@@ -80,10 +80,12 @@ export class GameScene extends Phaser.Scene {
       if (e === 'jump') {
         services.audio.sfx('jump');
         this.runtime.notifyJump();
+        if (!services.settings.reducedMotion) this.dust(4);
       } else if (e === 'land') {
         services.audio.sfx('land');
         this.runtime.notifyLand();
         void haptic('light', services.settings.haptics && Math.abs((this.player.body as Phaser.Physics.Arcade.Body).velocity.y) > 200);
+        if (!services.settings.reducedMotion) this.dust(7);
       }
     };
 
@@ -390,6 +392,23 @@ export class GameScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.player);
     this.player.revive(this.runtime.parsed.spawn.x, this.runtime.parsed.spawn.y);
     this.state = 'playing';
+  }
+
+  /** Small dust puff at Pip's feet — grounded feel, zero texture memory. */
+  private dust(n: number): void {
+    const p = this.add.particles(this.player.x, this.player.y + 20, 'dot', {
+      speed: { min: 20, max: 90 },
+      angle: { min: 200, max: 340 },
+      gravityY: 300,
+      lifespan: { min: 180, max: 340 },
+      scale: { start: 0.9, end: 0 },
+      alpha: { start: 0.5, end: 0 },
+      tint: 0xffffff,
+      emitting: false,
+    });
+    p.setDepth(9);
+    p.explode(n);
+    this.time.delayedCall(420, () => p.destroy());
   }
 
   private achievementToast(title: string): void {

@@ -7,6 +7,7 @@ const F = '################################';
 export const CH4: LevelDef[] = [
   {
     id: '4-1', chapter: 4, index: 1, name: 'Combo Meal',
+    tip: 'The belt carries you onto cracking floor. Keep those feet moving.',
     quip: 'A belt, a bridge, and some teeth.',
     map: [
       E, E, E, E, E, E, E, E, E, E, E, E, E, E,
@@ -41,6 +42,7 @@ export const CH4: LevelDef[] = [
   },
   {
     id: '4-3', chapter: 4, index: 3, name: 'Red Light',
+    tip: 'The spikes pulse on a rhythm. Move on the off-beat.',
     quip: 'Rhythm game. With consequences.',
     map: [
       E, E, E, E,
@@ -59,6 +61,7 @@ export const CH4: LevelDef[] = [
   },
   {
     id: '4-4', chapter: 4, index: 4, name: 'Group Project',
+    tip: 'Step on the button to open the door, then ride the lift across.',
     quip: 'The button, the belt-car, and the door.',
     map: [
       E, E, E, E, E, E, E, E, E, E, E, E, E, E,
@@ -94,6 +97,7 @@ export const CH4: LevelDef[] = [
   },
   {
     id: '4-6', chapter: 4, index: 6, name: 'The Audition',
+    tip: 'One door lies, one door runs, one is real. Audition them all.',
     quip: 'Two doors audition. One gets the part.',
     map: [
       E, E, E, E, E, E, E, E, E, E, E, E, E, E,

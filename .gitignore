@@ -18,3 +18,4 @@ keystore.properties
 *.keystore
 *.jks
 shots/
+!docs/shots/

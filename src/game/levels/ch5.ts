@@ -45,6 +45,7 @@ export const CH5: LevelDef[] = [
   },
   {
     id: '5-3', chapter: 5, index: 3, name: 'Gravity Maze',
+    tip: 'Flips are one-way doors. Plan where you land before you step in.',
     quip: 'The spikes own the floor. Take the ceiling.',
     map: [
       F, F,
@@ -120,6 +121,7 @@ export const CH5: LevelDef[] = [
   },
   {
     id: '5-7', chapter: 5, index: 7, name: 'Everything at Once',
+    tip: 'Slow is smooth, smooth is fast. Take each trap one at a time.',
     quip: 'The examiners got creative.',
     map: [
       F, F,

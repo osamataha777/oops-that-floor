@@ -7,6 +7,7 @@ const F = '################################';
 export const CH2: LevelDef[] = [
   {
     id: '2-1', chapter: 2, index: 1, name: 'Moving Day',
+    tip: 'Ride it. It is the only way across.',
     quip: 'That platform has somewhere to be.',
     map: [
       E, E, E, E, E, E, E, E, E, E, E, E, E, E,
@@ -120,6 +121,7 @@ export const CH2: LevelDef[] = [
   },
   {
     id: '2-8', chapter: 2, index: 8, name: 'Muscle Memory',
+    tip: 'Everything you trained for, in sequence. Stay calm.',
     quip: 'Chapter one wanted a rematch.',
     map: [
       E, E, E, E,

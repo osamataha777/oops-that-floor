@@ -22,6 +22,8 @@ Marker letters carry no fixed meaning; each level's `traps:` array maps a letter
 
 **Trigger events** (`TriggerDef`): `always`, `touch`, `proximity`, `enter-area`, `press`, `jump`, `land`, `trap-complete`, `timer`, `attempt-gte`, `attempt-eq`. Shipped levels use the first seven plus `attempt-*`; `jump`/`land`/`trap-complete`/`timer` are engine-supported for future content.
 
+**Attempt contract (v2):** `attempt` is **1-based** — the player's first try is attempt 1, the second try (after one death or restart) is attempt 2. `attempt-eq: 2` = "fires only on the second try"; `attempt-gte: 3` = "armed from the third try onward"; `attempt-gte: 99` = "never" (used for safe-but-paranoid floors).
+
 ## Difficulty curve
 
 | Chapter | Levels | Target solve time | New ideas introduced |
@@ -51,7 +53,24 @@ Two **warnings** are intentional: `3-2` and `3-8` place goals embedded in solid 
 
 ## Per-level design notes
 
-(Condensed — each level's trick is documented in its `tip` field in `src/game/levels/ch*.ts`, shown in-game from attempt 4+.)
+(Condensed — each level's trick is documented in its `tip` field in `src/game/levels/ch*.ts`, shown in-game once the player has earned it, i.e. 3+ cumulative attempts.)
+
+## Chapter 1 beats (v2 redesign)
+
+Each ch1 level was re-authored around a Setup→Bait→Betrayal→Recovery→Payoff loop:
+
+| Level | Beat |
+| --- | --- |
+| 1-1 Warm Up | Trust earned — walk, hop a spike, bridge a pit on a plank |
+| 1-2 It Looked Solid | First betrayal — a long stretch of floor is hollow (generous fuse) |
+| 1-3 Now It Bites | Hidden spikes; the crack is the tell |
+| 1-4 Cold Feet | The goal flees once; corner it — first "wait, WHAT?" moment |
+| 1-5 The Nice Path | Painted floor over void; take the plank high road |
+| 1-6 Watch Your Head | Ceiling block drops — and becomes a step you need |
+| 1-7 Nope | A wall pops up in your path; hop it |
+| 1-8 Pop Quiz | Crumble → teeth → fake door in one short run |
+
+Ch2–5 were classified **keep & polish**: the trap vocabulary is already varied (movers, conveyors, timed planks, crushers, plates, gravflips, spinners, attempt-memory, fake/shy goals). v2 gave every level an earned-progressive `tip`, the new physics contract (one-way `=`, 1-based attempts), and the new art/animation/audio language.
 
 - **Ch1** teaches the grammar: floor lies (1-1, 1-3), spikes lie (1-2, 1-6), walls lie (1-4), doors lie (1-5, 1-8).
 - **Ch2** makes lies move: the first conveyor carries you *toward* a spike (2-2); timed planks force commitment (2-5).

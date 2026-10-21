@@ -47,8 +47,8 @@ describe('level parsing', () => {
   });
   it('collects trap markers', () => {
     const p = parseLevel(LEVELS.find((l) => l.id === '1-3')!);
-    expect(p.markers.get('c')?.length).toBe(2);
-    expect(p.markers.get('s')?.length).toBe(1);
+    expect(p.markers.get('c')?.length).toBe(4);
+    expect(p.markers.get('s')?.length).toBe(3);
   });
 });
 

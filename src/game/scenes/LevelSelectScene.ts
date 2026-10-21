@@ -30,6 +30,11 @@ export class LevelSelectScene extends Phaser.Scene {
     });
 
     this.content = this.add.container(0, 90);
+    // scroll mask — cards must not draw over the header/back button
+    const maskG = this.make.graphics({});
+    maskG.fillStyle(0xffffff).fillRect(0, 88, GAME_WIDTH, GAME_HEIGHT - 88);
+    this.content.setMask(maskG.createGeometryMask());
+
     let y = 0;
     for (let ch = 0; ch < 5; ch++) {
       const theme = THEMES[ch];
@@ -37,17 +42,20 @@ export class LevelSelectScene extends Phaser.Scene {
       const comp = chapterCompletion(services.save, levels.map((l) => l.id));
       const hdr = this.add.container(GAME_WIDTH / 2, y + 26);
       const hg = this.add.graphics();
+      hg.fillStyle(theme.solidDark, 0.35).fillRoundedRect(-328, -20, 660, 44, 12);
       hg.fillStyle(theme.solid, 1).fillRoundedRect(-330, -22, 660, 44, 12);
+      hg.fillStyle(theme.solidTop, 0.9).fillRoundedRect(-330, -22, 660, 8, { tl: 12, tr: 12, bl: 0, br: 0 });
       hdr.add(hg);
       hdr.add(this.add.text(-310, 0, `Chapter ${ch + 1} — ${theme.name}`, { ...TXT.light, fontSize: '19px' }).setOrigin(0, 0.5));
-      hdr.add(this.add.text(310, 0, `${comp.done}/${comp.total}`, { ...TXT.light, fontSize: '17px' }).setOrigin(1, 0.5));
+      const stars = '★'.repeat(comp.done) + '☆'.repeat(comp.total - comp.done);
+      hdr.add(this.add.text(310, 0, stars, { ...TXT.light, fontSize: '13px' }).setOrigin(1, 0.5));
       this.content.add(hdr);
       y += 66;
       for (let i = 0; i < 8; i++) {
         const lvl = levels[i];
         const col = i % 4;
         const row = Math.floor(i / 4);
-        this.content.add(this.levelButton(190 + col * 193, y + row * 74 + 36, lvl));
+        this.content.add(this.levelButton(190 + col * 193, y + row * 74 + 36, lvl, theme));
       }
       y += 168;
     }
@@ -69,7 +77,7 @@ export class LevelSelectScene extends Phaser.Scene {
     });
   }
 
-  private levelButton(x: number, y: number, lvl: LevelDef): Phaser.GameObjects.Container {
+  private levelButton(x: number, y: number, lvl: LevelDef, theme: (typeof THEMES)[number]): Phaser.GameObjects.Container {
     const idx = LEVELS.indexOf(lvl);
     const unlocked = isUnlocked(services.save, idx);
     const rec = services.save.levels[lvl.id];
@@ -80,10 +88,19 @@ export class LevelSelectScene extends Phaser.Scene {
     const fill = unlocked ? (rec?.completed ? 0x58a05c : 0xfffaf0) : 0xd9d0c0;
     g.fillStyle(0x000000, unlocked ? 0.12 : 0.05).fillRoundedRect(-w / 2 + 3, -h / 2 + 4, w, h, 14);
     g.fillStyle(fill, 1).fillRoundedRect(-w / 2, -h / 2, w, h, 14);
+    if (unlocked && !rec?.completed) {
+      // chapter accent edge on unlocked-but-uncleared cards
+      g.fillStyle(theme.accent, 0.9).fillRoundedRect(-w / 2, -h / 2, 6, h, { tl: 14, tr: 0, bl: 14, br: 0 });
+    }
     c.add(g);
     const label = unlocked ? `${lvl.id}  ${rec?.completed ? '✓' : ''}` : `${lvl.id}  🔒`;
     c.add(this.add.text(0, -12, label, { ...TXT.h2, fontSize: '17px', color: unlocked ? (rec?.completed ? '#fffaf0' : '#3f372f') : '#8a8073' }).setOrigin(0.5));
-    c.add(this.add.text(0, 14, unlocked ? lvl.name : 'finish previous', { ...TXT.small, fontSize: '12px', color: unlocked ? (rec?.completed ? '#e8f5e9' : '#7a6f62') : '#9a9083' }).setOrigin(0.5));
+    const sub = unlocked
+      ? rec?.completed && rec.bestAttempts
+        ? `${lvl.name} · best ${rec.bestAttempts}`
+        : lvl.name
+      : 'finish previous';
+    c.add(this.add.text(0, 14, sub, { ...TXT.small, fontSize: '12px', color: unlocked ? (rec?.completed ? '#e8f5e9' : '#7a6f62') : '#9a9083' }).setOrigin(0.5));
     if (unlocked) {
       c.setSize(w, h).setInteractive({ useHandCursor: true });
       c.on('pointerup', () => {
