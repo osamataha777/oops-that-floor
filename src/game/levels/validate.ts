@@ -97,7 +97,7 @@ function validateTrap(def: LevelDef, t: TrapDef, letters: Set<string>, issues: L
       if (!t.to) say(`mover '${t.id}' needs a 'to' marker destination`, false);
       break;
     case 'fallblock':
-      if (!t.to && t.trigger.event !== 'proximity' && t.trigger.event !== 'enter-area')
+      if (!t.to && !['proximity', 'enter-area', 'press', 'trap-complete'].includes(t.trigger.event))
         say(`fallblock '${t.id}' usually wants proximity or enter-area trigger`, false);
       break;
     case 'plate':
