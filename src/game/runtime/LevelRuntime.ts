@@ -28,9 +28,12 @@ export class LevelRuntime {
   readonly parsed: ParsedLevel;
   readonly bus = new Phaser.Events.EventEmitter();
   readonly solids: Phaser.Physics.Arcade.StaticGroup;
+  /** '=' cells — true one-way platforms (collide only from the standing face). */
+  readonly platforms: Phaser.Physics.Arcade.StaticGroup;
   readonly dynamics: Phaser.Physics.Arcade.Group;
   traps: Trap[] = [];
-  attempt = 0;
+  /** 1-based: attempt N is the player's Nth try this visit. */
+  attempt = 1;
 
   private scene: Phaser.Scene;
   private theme: ChapterTheme;
@@ -42,6 +45,7 @@ export class LevelRuntime {
   private spikeZones: Rect[];
   private staticG: Phaser.GameObjects.Graphics;
   private ctx: TrapContext;
+  private platformsFaceDown = true;
 
   constructor(scene: Phaser.Scene, def: LevelDef, theme: ChapterTheme, player: Player, hooks: RuntimeHooks) {
     this.scene = scene;
@@ -51,6 +55,7 @@ export class LevelRuntime {
     this.parsed = parseLevel(def);
 
     this.solids = scene.physics.add.staticGroup();
+    this.platforms = scene.physics.add.staticGroup();
     this.dynamics = scene.physics.add.group();
     this.staticG = scene.add.graphics().setDepth(2);
     this.goalG = scene.add.graphics().setDepth(4);
@@ -60,7 +65,7 @@ export class LevelRuntime {
       player,
       solids: this.solids,
       dynamics: this.dynamics,
-      attempt: 0,
+      attempt: 1,
       theme,
       parsed: this.parsed,
       bus: this.bus,
@@ -96,7 +101,7 @@ export class LevelRuntime {
     }
     for (const r of this.parsed.platforms) {
       drawPlatformTile(g, r, t);
-      this.addSolid(r);
+      this.addPlatform(r);
     }
     for (const r of this.parsed.ghosts) {
       // identical look, zero body — the classic betrayal
@@ -117,6 +122,20 @@ export class LevelRuntime {
     b.refreshBody();
     b.setVisible(false);
     return b;
+  }
+
+  private addPlatform(r: Rect): void {
+    const b = this.platforms.create(r.x + r.w / 2, r.y + r.h / 2, 'px') as Phaser.Physics.Arcade.Sprite;
+    b.setDisplaySize(r.w, r.h);
+    b.refreshBody();
+    b.setVisible(false);
+    const body = b.body as Phaser.Physics.Arcade.StaticBody;
+    // One-way: collide on the standing face only. Gravity flips swap the face.
+    const down = this.scene.physics.world.gravity.y >= 0;
+    body.checkCollision.up = down;
+    body.checkCollision.down = !down;
+    body.checkCollision.left = false;
+    body.checkCollision.right = false;
   }
 
   private drawGoal(): void {
@@ -147,6 +166,16 @@ export class LevelRuntime {
     if (this.player.y > this.parsed.height + 120) {
       this.hooks.onKill('void');
       return;
+    }
+    // One-way platforms track gravity flips.
+    const down = this.scene.physics.world.gravity.y >= 0;
+    if (down !== this.platformsFaceDown) {
+      this.platformsFaceDown = down;
+      for (const p of this.platforms.getChildren()) {
+        const body = (p as Phaser.Physics.Arcade.Sprite).body as Phaser.Physics.Arcade.StaticBody;
+        body.checkCollision.up = down;
+        body.checkCollision.down = !down;
+      }
     }
     for (const t of this.traps) t.update(dtMs);
   }
@@ -179,6 +208,7 @@ export class LevelRuntime {
     this.staticG.destroy();
     this.goalG.destroy();
     this.solids.destroy(true, true);
+    this.platforms.destroy(true, true);
     this.dynamics.destroy(true, true);
     this.bus.removeAllListeners();
   }

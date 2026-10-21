@@ -94,6 +94,24 @@ export function randomDeathAnim(): DeathAnim {
   return all[Math.floor(Math.random() * all.length)];
 }
 
+/** Cause-aware gag selection — each way to fail gets a signature exit. */
+export function deathAnimFor(cause: DeathCause): DeathAnim {
+  switch (cause) {
+    case 'crush':
+    case 'squash':
+      return 'pancake';
+    case 'void':
+    case 'fall':
+      return 'poof';
+    case 'spikes':
+      return 'confetti';
+    case 'hazard':
+      return 'shrink';
+    default:
+      return 'freeze';
+  }
+}
+
 /** Geometric confetti burst — pooled particles, zero texture memory. */
 export function burst(scene: Phaser.Scene, x: number, y: number, n = 12): void {
   const colors = [0xf2a541, 0x58c472, 0x5aa8f2, 0xf25a68, 0xfffaf0];

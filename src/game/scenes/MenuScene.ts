@@ -119,21 +119,21 @@ export class MenuScene extends Phaser.Scene {
       c.add(bShare);
     }
 
-    // code entry
+    // code entry — native-friendly DOM input (real keyboard, paste, no prompt())
     const entry = this.add.text(0, 84, 'Tap to enter code', { ...TXT.body, color: '#4a72b0' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     const shown = this.add.text(0, 120, '', { ...TXT.h2, fontFamily: 'ui-monospace, monospace' }).setOrigin(0.5);
     entry.on('pointerup', () => {
-      const code = window.prompt('Enter challenge code (e.g. OTF-0A-05-Q):');
-      if (!code) return;
-      const dec = decodeChallenge(code, LEVELS.length - 1);
-      if (dec) {
-        const lvl = levelAt(dec.levelIndex);
-        shown.setText(`→ ${lvl.id} in ≤${dec.deaths + 1} tries`);
-        this.time.delayedCall(600, () => this.scene.start('Game', { index: dec.levelIndex, challengeDeaths: dec.deaths }));
-      } else {
-        shown.setText('Invalid code');
-        services.audio.sfx('denied');
-      }
+      this.openCodeEntry((code) => {
+        const dec = decodeChallenge(code, LEVELS.length - 1);
+        if (dec) {
+          const lvl = levelAt(dec.levelIndex);
+          shown.setText(`→ ${lvl.id} in ≤${dec.deaths + 1} tries`);
+          this.time.delayedCall(600, () => this.scene.start('Game', { index: dec.levelIndex, challengeDeaths: dec.deaths }));
+        } else {
+          shown.setText('Invalid code');
+          services.audio.sfx('denied');
+        }
+      });
     });
     c.add([entry, shown]);
 
@@ -144,5 +144,62 @@ export class MenuScene extends Phaser.Scene {
     });
     c.add(close);
     this.overlay = c;
+  }
+
+  /**
+   * In-game challenge-code entry. Uses a DOM input so it gets a real native
+   * keyboard + paste support inside the Capacitor WebView — no window.prompt.
+   */
+  private openCodeEntry(onCode: (code: string) => void): void {
+    const host = document.createElement('div');
+    host.style.cssText =
+      'position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(43,36,24,0.5);';
+    const box = document.createElement('div');
+    box.style.cssText =
+      'background:#fffaf0;border-radius:18px;padding:22px 26px;display:flex;flex-direction:column;' +
+      'gap:12px;align-items:center;box-shadow:0 12px 40px rgba(0,0,0,.25);font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif;';
+    const label = document.createElement('div');
+    label.textContent = 'Challenge code';
+    label.style.cssText = 'font-size:15px;font-weight:700;color:#7a6f62;';
+    const input = document.createElement('input');
+    input.placeholder = 'OTF-00-00-0';
+    input.setAttribute('maxlength', '11');
+    input.setAttribute('autocapitalize', 'characters');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('spellcheck', 'false');
+    input.style.cssText =
+      'font-size:26px;font-family:ui-monospace,monospace;font-weight:800;letter-spacing:2px;' +
+      'text-align:center;text-transform:uppercase;border:3px solid #e4dccb;border-radius:12px;' +
+      'padding:10px 14px;width:260px;color:#3f372f;background:#fff;outline:none;';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;';
+    const btn = document.createElement('button');
+    btn.textContent = 'Go';
+    btn.style.cssText =
+      'font-size:16px;font-weight:800;color:#fffaf0;background:#58a05c;border:0;border-radius:10px;padding:10px 24px;';
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    cancel.style.cssText =
+      'font-size:16px;font-weight:700;color:#7a6f62;background:transparent;border:0;padding:10px 16px;';
+    const done = (code?: string) => {
+      host.remove();
+      if (code) onCode(code);
+    };
+    btn.onclick = () => done(input.value);
+    cancel.onclick = () => done();
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') done(input.value);
+      if (e.key === 'Escape') done();
+    };
+    host.onclick = (e) => {
+      if (e.target === host) done();
+    };
+    row.append(btn, cancel);
+    box.append(label, input, row);
+    host.append(box);
+    document.body.append(host);
+    input.focus();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => host.remove());
   }
 }

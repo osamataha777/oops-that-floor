@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { cellsRect, overlap, playerRect, rectCenter } from '../../src/game/traps/context';
 import { TRAP_TYPES } from '../../src/game/levels/types';
+import { LEVELS } from '../../src/game/levels/index';
+import { deathAnimFor } from '../../src/game/effects/juice';
 
 describe('trap registry surface', () => {
   it('implements 14 trap types', () => {
@@ -8,6 +10,39 @@ describe('trap registry surface', () => {
     expect(TRAP_TYPES).toContain('collapse');
     expect(TRAP_TYPES).toContain('gravflip');
     expect(TRAP_TYPES).toContain('shygoal');
+  });
+});
+
+describe('attempt-gated trap contract', () => {
+  // Contract: `attempt` is 1-based — the first try is attempt 1, the second try
+  // (after one death/restart) is attempt 2. Level data `n` values are authored
+  // against this numbering.
+  it('attempt-eq only targets the second try', () => {
+    for (const l of LEVELS) {
+      for (const t of l.traps) {
+        if (t.trigger.event === 'attempt-eq') {
+          expect(t.trigger.n, `${l.id}:${t.id} should use 1-based attempt numbers`).toBe(2);
+        }
+      }
+    }
+  });
+  it('attempt-gte thresholds are meaningful (≥2) or deliberately impossible', () => {
+    for (const l of LEVELS) {
+      for (const t of l.traps) {
+        if (t.trigger.event === 'attempt-gte') {
+          expect(t.trigger.n, `${l.id}:${t.id}`).not.toBe(1); // n=1 would always fire
+        }
+      }
+    }
+  });
+});
+
+describe('cause-aware death gags', () => {
+  it('each death cause maps to its signature animation', () => {
+    expect(deathAnimFor('crush')).toBe('pancake');
+    expect(deathAnimFor('void')).toBe('poof');
+    expect(deathAnimFor('spikes')).toBe('confetti');
+    expect(deathAnimFor('hazard')).toBe('shrink');
   });
 });
 

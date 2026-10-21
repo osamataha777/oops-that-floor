@@ -102,13 +102,18 @@ export async function shareText(text: string): Promise<'shared' | 'copied' | 'fa
 export function onBackButton(cb: () => void): () => void {
   if (!isNative()) return () => undefined;
   let remove: () => void = () => undefined;
+  let cancelled = false;
   void import('@capacitor/app')
     .then(({ App }) => {
+      if (cancelled) return; // scene destroyed before the import resolved
       const h = App.addListener('backButton', cb);
       remove = () => void h.then((x) => x.remove());
     })
     .catch(() => undefined);
-  return () => remove();
+  return () => {
+    cancelled = true;
+    remove();
+  };
 }
 
 export async function minimizeApp(): Promise<void> {

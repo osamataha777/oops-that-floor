@@ -11,11 +11,11 @@ import { LevelDef } from '../levels/types';
 import { services } from '../core/services';
 import { recordAttempt, recordCompletion } from '../../services/progress';
 import { evaluateAchievements } from '../../services/achievements';
-import { pickQuip, playDeathAnim, randomDeathAnim, victoryConfetti, floatQuip, DEATH_QUIPS } from '../effects/juice';
+import { pickQuip, playDeathAnim, deathAnimFor, victoryConfetti, floatQuip, DEATH_QUIPS } from '../effects/juice';
 import { DeathCause } from '../traps/context';
 import { haptic, onBackButton, shareCard } from '../../platform/native';
 import { renderShareCard } from '../../services/shareCard';
-import { challengeText } from '../../services/challenge';
+import { challengeText, encodeChallenge } from '../../services/challenge';
 
 type PlayState = 'intro' | 'playing' | 'dying' | 'complete' | 'paused';
 
@@ -71,6 +71,7 @@ export class GameScene extends Phaser.Scene {
     this.player.setPosition(this.runtime.parsed.spawn.x, this.runtime.parsed.spawn.y);
 
     this.physics.add.collider(this.player, this.runtime.solids);
+    this.physics.add.collider(this.player, this.runtime.platforms);
     this.physics.add.collider(this.player, this.runtime.dynamics);
     this.physics.add.collider(this.runtime.dynamics, this.runtime.solids);
     this.physics.add.collider(this.runtime.dynamics, this.runtime.dynamics);
@@ -149,7 +150,10 @@ export class GameScene extends Phaser.Scene {
       .setAlpha(0);
     this.tweens.add({ targets: t, alpha: 1, duration: 160 });
     this.tweens.add({ targets: t, alpha: 0, y: 180, delay: 1100, duration: 240, onComplete: () => t.destroy() });
-    const tip = this.def.tip;
+    // Progressive hint: the tip only appears once the player has earned it —
+    // a few deaths to the trick first preserves the first-time surprise.
+    const earnedTip = (services.save.levels[this.def.id]?.totalAttempts ?? 0) + this.deathsThisVisit >= 3;
+    const tip = earnedTip ? this.def.tip : undefined;
     if (tip) {
       const tt = this.add
         .text(GAME_WIDTH / 2, 268, tip, { ...TXT.small, align: 'center' })
@@ -165,11 +169,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_t: number, dt: number): void {
-    if (this.state !== 'playing' && this.state !== 'dying' && this.state !== 'intro') return;
-    if (this.state === 'playing') {
-      const input = this.ctl.poll();
-      this.player.update(dt, input);
-    }
+    // Simulation runs ONLY while the player has control. This keeps traps from
+    // arming during the intro card and makes death a clean freeze-frame.
+    if (this.state !== 'playing') return;
+    const input = this.ctl.poll();
+    this.player.update(dt, input);
     this.runtime.update(dt);
   }
 
@@ -195,12 +199,13 @@ export class GameScene extends Phaser.Scene {
       floatQuip(this, pickQuip(cause), this.player.x, this.player.y - 40);
     }
 
-    const animMs = playDeathAnim(this, this.player, randomDeathAnim(), services.settings.reducedMotion, () => this.respawn());
-    void animMs;
+    playDeathAnim(this, this.player, deathAnimFor(cause), services.settings.reducedMotion, () => this.respawn());
     for (const a of won) this.achievementToast(a.title);
   }
 
   private respawn(): void {
+    // Only the death path may respawn — guards against pause/manualRestart races.
+    if (this.state !== 'dying') return;
     this.runtime.reset();
     this.player.setVisible(true);
     this.player.revive(this.runtime.parsed.spawn.x, this.runtime.parsed.spawn.y);
@@ -273,13 +278,14 @@ export class GameScene extends Phaser.Scene {
 
   private async shareResult(attempts: number): Promise<void> {
     services.audio.sfx('click');
-    const text = challengeText({ levelIndex: this.levelIndex, deaths: this.deathsThisVisit }, this.def.id);
+    const challenge = { levelIndex: this.levelIndex, deaths: this.deathsThisVisit };
+    const text = challengeText(challenge, this.def.id);
     const png = renderShareCard({
       levelId: this.def.id,
       levelName: this.def.name,
       attempts,
       caption: this.deathsThisVisit === 0 ? 'Zero casualties. Show-off.' : pickQuip('generic'),
-      code: undefined,
+      code: encodeChallenge(challenge),
     });
     await shareCard(png, text);
   }
@@ -291,7 +297,9 @@ export class GameScene extends Phaser.Scene {
       this.closeOverlay();
       return;
     }
-    if (this.state === 'complete') return;
+    // Only live play can pause — intro, dying and complete are excluded so no
+    // overlay can ever capture an in-flight respawn or level transition.
+    if (this.state !== 'playing') return;
     this.state = 'paused';
     this.physics.world.pause();
     services.audio.sfx('click');
@@ -333,10 +341,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private manualRestart(): void {
-    if (this.state === 'complete') return;
+    if (this.state === 'complete' || this.state === 'intro') return;
+    const wasDying = this.state === 'dying';
+    if (wasDying) this.state = 'playing'; // stale anim callback is blocked by respawn's guard
     this.runtime.reset();
     this.player.setVisible(true);
     this.player.clearTint();
+    this.tweens.killTweensOf(this.player);
     this.player.revive(this.runtime.parsed.spawn.x, this.runtime.parsed.spawn.y);
     this.state = 'playing';
   }
