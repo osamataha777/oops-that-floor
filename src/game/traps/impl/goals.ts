@@ -89,7 +89,7 @@ export class ShyGoalTrap extends Trap {
     const g = this.ctx.goalRect();
     this.ctx.feedback('goal.flee');
     this.ctx.quip(FLEE_QUIPS[(this.hops - 1) % FLEE_QUIPS.length], g.x + g.w / 2, g.y - 24);
-    this.ctx.moveGoal(target.x + 2, target.y - TILE + 2);
+    this.ctx.moveGoalToCell(target);
     this.cooldownUntil = this.elapsed + 450;
     this.rearm(); // the next approach can scare it again
   }

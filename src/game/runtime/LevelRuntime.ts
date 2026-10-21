@@ -88,6 +88,7 @@ export class LevelRuntime {
       kill: (c) => hooks.onKill(c),
       feedback: (ev, o) => hooks.feedback(ev, o),
       moveGoal: (x, y, instant) => this.moveGoal(x, y, instant),
+      moveGoalToCell: (cell) => this.moveGoalToCell(cell),
       goalRect: () => this.goalRect,
       edgesAt: (r) => this.edgesAt(r),
       quip: (t, x, y) => hooks.quip(t, x, y),
@@ -247,23 +248,51 @@ export class LevelRuntime {
     body.checkCollision.right = false;
   }
 
+  private goalFlipped = false;
+
+  /** Door art is drawn around its centre so it can hang upside-down. */
   private drawGoal(): void {
+    const w = this.goalRect.w;
+    const h = this.goalRect.h;
     this.goalG.clear();
-    drawGoal(this.goalG, { x: 0, y: 0, w: this.goalRect.w, h: this.goalRect.h }, this.theme);
-    this.goalG.setPosition(this.goalRect.x, this.goalRect.y);
+    drawGoal(this.goalG, { x: -w / 2, y: -h / 2, w, h }, this.theme);
+    this.placeGoalArt(this.goalRect.x, this.goalRect.y);
+  }
+
+  private placeGoalArt(x: number, y: number): void {
+    this.goalG.setPosition(x + this.goalRect.w / 2, y + this.goalRect.h / 2).setScale(1, this.goalFlipped ? -1 : 1);
+  }
+
+  /**
+   * Send the exit to a map cell. A cell with ground above and air below is a
+   * ceiling spot: the door hangs upside-down from it (reachable only with
+   * flipped gravity).
+   */
+  moveGoalToCell(cell: Rect): void {
+    const c = Math.round(cell.x / TILE);
+    const r = Math.round(cell.y / TILE);
+    const map = this.parsed.def.map;
+    const ceiling = map[r - 1]?.[c] === '#' && map[r + 1]?.[c] !== '#';
+    this.goalFlipped = ceiling;
+    if (ceiling) this.moveGoal(cell.x + 2, cell.y, false);
+    else this.moveGoal(cell.x + 2, cell.y - TILE + 2, false);
   }
 
   /** Relocate the exit. The hitbox moves instantly; the art scurries after it. */
   moveGoal(x: number, y: number, instant = false): void {
     this.goalRect = { ...this.goalRect, x, y };
     this.stopGoalTween();
+    const hw = this.goalRect.w / 2;
+    const hh = this.goalRect.h / 2;
     if (instant || this.hooks.reduceMotion()) {
-      this.goalG.setPosition(x, y).setAngle(0).setScale(1);
+      this.goalG.setAngle(0);
+      this.placeGoalArt(x, y);
       return;
     }
     // a frightened little hop: leap in an arc, lean into the run
-    const fromX = this.goalG.x;
-    const fromY = this.goalG.y;
+    const fromX = this.goalG.x - hw;
+    const fromY = this.goalG.y - hh;
+    this.goalG.setScale(1, this.goalFlipped ? -1 : 1);
     const o = { t: 0 };
     this.goalTween = this.scene.tweens.add({
       targets: o,
@@ -272,11 +301,12 @@ export class LevelRuntime {
       ease: 'Sine.easeInOut',
       onUpdate: () => {
         const arc = Math.sin(o.t * Math.PI) * 46;
-        this.goalG.setPosition(fromX + (x - fromX) * o.t, fromY + (y - fromY) * o.t - arc);
+        this.goalG.setPosition(fromX + (x - fromX) * o.t + hw, fromY + (y - fromY) * o.t - arc + hh);
         this.goalG.setAngle((x > fromX ? 1 : -1) * Math.sin(o.t * Math.PI) * 14);
       },
       onComplete: () => {
-        this.goalG.setPosition(x, y).setAngle(0);
+        this.goalG.setAngle(0);
+        this.placeGoalArt(x, y);
         this.goalTween = null;
       },
     });
@@ -327,6 +357,7 @@ export class LevelRuntime {
     this.attempt += 1;
     this.ctx.attempt = this.attempt;
     this.goalRect = { ...this.goalHome };
+    this.goalFlipped = false;
     this.stopGoalTween();
     this.goalG.setAngle(0).setScale(1);
     this.drawGoal();

@@ -23,6 +23,8 @@ export interface TrapContext {
   feedback(ev: FeedbackEvent, opts?: { intensity?: number }): void;
   /** Move the level goal (used by shygoal). `instant` skips the hop animation. */
   moveGoal(x: number, y: number, instant?: boolean): void;
+  /** Send the goal to a map cell (floor or ceiling, decided by the map). */
+  moveGoalToCell(cell: Rect): void;
   /** Current goal rect (moves when a shy door flees). */
   goalRect(): Rect;
   /** Exposed sides of a cell-aligned rect (for seamless disguised tiles). */

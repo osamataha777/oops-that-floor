@@ -94,5 +94,52 @@
   "deaths": 0,
   "naive": "R300",
   "beat": "assembly line"
+ },
+ "3-1": {
+  "program": "R160",
+  "deaths": 0,
+  "beat": "fall up, walk the ceiling (honest opener)"
+ },
+ "3-2": {
+  "program": "R50 RJ16 R76 _80",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "the flip wears off"
+ },
+ "3-3": {
+  "program": "R26 RJ16 R26 RJ16 R80",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "after a death the bridge gives way"
+ },
+ "3-4": {
+  "program": "R20 RJ8 R120",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "the first button builds a wall"
+ },
+ "3-5": {
+  "program": "R8 RJ13 RG R3 RJ16 RG L0 R3 RJ16 RG R3 RJ14 R60",
+  "deaths": 0,
+  "naive": "R8 RJ13 RG R60",
+  "beat": "clean stones are paint, cracked ones hold"
+ },
+ "3-6": {
+  "program": "R8 RJ12 R58 RJ16 R60",
+  "deaths": 0,
+  "naive": "R400",
+  "beat": "jump in both gravities"
+ },
+ "3-7": {
+  "program": "R10 RJ10 _G R24 RJ16 R80",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "the level adapts each attempt"
+ },
+ "3-8": {
+  "program": "R150 L30 LJ10 L30 LJ12 L60",
+  "deaths": 0,
+  "naive": "R400",
+  "beat": "the door flees to the ceiling"
  }
 }
