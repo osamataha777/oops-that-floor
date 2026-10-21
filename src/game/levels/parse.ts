@@ -1,5 +1,5 @@
 import { GRID_W, GRID_H, TILE } from '../core/config';
-import { LevelDef, ParsedLevel, Rect, Vec2 } from './types';
+import { LevelDef, ParsedLevel, Rect, Vec2, SpikeStrip } from './types';
 
 const isMarker = (ch: string) => ch >= 'a' && ch <= 'z';
 
@@ -74,8 +74,20 @@ export function parseLevel(def: LevelDef): ParsedLevel {
   const flatten = (cols: number[][]): Rect[] =>
     cols.flatMap((rowCols, r) => runs(r, rowCols));
 
-  // Spike strips: kill zone is the top 12 px of each spike cell.
-  const spikeRects = flatten(spikeCols).map((r) => ({ x: r.x + 3, y: r.y + 2, w: r.w - 6, h: 12 }));
+  // Spike strips sit on whatever they're attached to: floor below → teeth
+  // up from the cell bottom; ceiling above (and no floor) → teeth hanging
+  // down. The kill zone matches the drawn teeth, inset 4 px for fairness.
+  const solidAt = (c: number, r: number) => rows[r]?.[c] === '#';
+  const spikeRects: SpikeStrip[] = flatten(spikeCols).map((r) => {
+    const c0 = Math.round(r.x / TILE);
+    const row = Math.round(r.y / TILE);
+    const below = solidAt(c0, row + 1);
+    const above = solidAt(c0, row - 1);
+    const dir: 'up' | 'down' = !below && above ? 'down' : 'up';
+    return dir === 'up'
+      ? { x: r.x + 4, y: r.y + TILE - 13, w: r.w - 8, h: 13, dir, cell: r }
+      : { x: r.x + 4, y: r.y, w: r.w - 8, h: 13, dir, cell: r };
+  });
 
   return {
     def,

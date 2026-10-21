@@ -22,22 +22,57 @@ export function platformName(): 'android' | 'ios' | 'web' {
   }
 }
 
-export type HapticKind = 'light' | 'medium' | 'heavy' | 'success' | 'warning';
+export type HapticKind = 'selection' | 'light' | 'medium' | 'heavy' | 'success' | 'warning';
 
-export async function haptic(kind: HapticKind, enabled: boolean): Promise<void> {
-  if (!enabled || !isNative()) return;
+type HapticsModule = typeof import('@capacitor/haptics');
+let hapticsMod: HapticsModule | null = null;
+let hapticsLoading: Promise<void> | null = null;
+
+/**
+ * Load the Capacitor haptics bridge once, ahead of gameplay, so the first
+ * pulse is never delayed by a dynamic import. No-op on the web.
+ */
+export function preloadHaptics(): Promise<void> {
+  if (!isNative()) return Promise.resolve();
+  hapticsLoading ??= import('@capacitor/haptics')
+    .then((m) => {
+      hapticsMod = m;
+    })
+    .catch(() => undefined);
+  return hapticsLoading;
+}
+
+/**
+ * Fire-and-forget haptic pulse. Never awaited by gameplay; silently ignored
+ * when disabled, on the web, or before the bridge has loaded.
+ */
+export function fireHaptic(kind: HapticKind, enabled = true): void {
+  if (!enabled || !hapticsMod) return;
+  const { Haptics, ImpactStyle, NotificationType } = hapticsMod;
+  const swallow = (p: Promise<unknown>) => void p.catch(() => undefined);
   try {
-    const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
     switch (kind) {
-      case 'light': await Haptics.impact({ style: ImpactStyle.Light }); break;
-      case 'medium': await Haptics.impact({ style: ImpactStyle.Medium }); break;
-      case 'heavy': await Haptics.impact({ style: ImpactStyle.Heavy }); break;
-      case 'success': await Haptics.notification({ type: NotificationType.Success }); break;
-      case 'warning': await Haptics.notification({ type: NotificationType.Warning }); break;
+      case 'selection':
+        if (platformName() === 'ios') {
+          swallow(Haptics.selectionStart().then(() => Haptics.selectionChanged()).then(() => Haptics.selectionEnd()));
+        } else swallow(Haptics.vibrate({ duration: 8 }));
+        break;
+      case 'light': swallow(Haptics.impact({ style: ImpactStyle.Light })); break;
+      case 'medium': swallow(Haptics.impact({ style: ImpactStyle.Medium })); break;
+      case 'heavy': swallow(Haptics.impact({ style: ImpactStyle.Heavy })); break;
+      case 'success': swallow(Haptics.notification({ type: NotificationType.Success })); break;
+      case 'warning': swallow(Haptics.notification({ type: NotificationType.Warning })); break;
     }
   } catch {
     /* haptics unavailable */
   }
+}
+
+/** @deprecated use the FeedbackManager; kept for legacy call sites. */
+export async function haptic(kind: HapticKind, enabled: boolean): Promise<void> {
+  if (!enabled) return;
+  await preloadHaptics();
+  fireHaptic(kind, enabled);
 }
 
 /** Share a generated PNG card + caption via the native sheet or Web Share L2. */

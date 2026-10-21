@@ -6,6 +6,7 @@ import { services } from '../core/services';
 import { LEVELS } from '../levels/index';
 import { isUnlocked, chapterCompletion } from '../../services/progress';
 import { LevelDef } from '../levels/types';
+import { setupCamera, logicalPointer } from '../core/view';
 
 export class LevelSelectScene extends Phaser.Scene {
   private scrollY = 0;
@@ -20,6 +21,7 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    setupCamera(this);
     this.cameras.main.setBackgroundColor(0xf4efe6);
     this.cameras.main.fadeIn(180);
     this.add.text(GAME_WIDTH / 2, 44, 'Pick Your Poison', TXT.h1).setOrigin(0.5);
@@ -64,13 +66,13 @@ export class LevelSelectScene extends Phaser.Scene {
     // scroll (drag + wheel)
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       this.dragging = true;
-      this.dragStartY = p.y;
+      this.dragStartY = logicalPointer(p).y;
       this.contentStartY = this.content.y;
     });
     this.input.on('pointerup', () => (this.dragging = false));
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!this.dragging || !p.isDown) return;
-      this.content.y = Phaser.Math.Clamp(this.contentStartY + (p.y - this.dragStartY), this.minY + 90, 90);
+      this.content.y = Phaser.Math.Clamp(this.contentStartY + (logicalPointer(p).y - this.dragStartY), this.minY + 90, 90);
     });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
       this.content.y = Phaser.Math.Clamp(this.content.y - dy * 0.6, this.minY + 90, 90);

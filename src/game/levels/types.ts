@@ -16,6 +16,7 @@ export const TRAP_TYPES = [
   'timed',      // platform that vanishes on a fuse after arming
   'ghost',      // floor that was never there
   'crusher',    // ceiling block that slams down and returns
+  'spring',     // bounce pad that launches the player
 ] as const;
 export type TrapType = (typeof TRAP_TYPES)[number];
 
@@ -84,6 +85,12 @@ export interface LevelDef {
   traps: TrapDef[];
 }
 
+/** A static spike run: `x,y,w,h` is the kill zone; `cell` the map cells it occupies. */
+export interface SpikeStrip extends Rect {
+  dir: 'up' | 'down';
+  cell: Rect;
+}
+
 /** Parsed level: everything resolved to pixel rects. */
 export interface ParsedLevel {
   def: LevelDef;
@@ -91,7 +98,7 @@ export interface ParsedLevel {
   height: number;
   solids: Rect[];            // '#'
   platforms: Rect[];         // '='
-  spikes: Rect[];            // 'X' kill strips
+  spikes: SpikeStrip[];      // 'X' kill strips
   ghosts: Rect[];            // '~'
   decor: Rect[];             // '^' bumps/hills — visual only
   spawn: Vec2;

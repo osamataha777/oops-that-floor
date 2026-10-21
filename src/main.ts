@@ -1,13 +1,19 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, PHYSICS } from './game/core/config';
+import { GAME_HEIGHT, PHYSICS } from './game/core/config';
 import { BootScene } from './game/scenes/BootScene';
 import { MenuScene } from './game/scenes/MenuScene';
 import { LevelSelectScene } from './game/scenes/LevelSelectScene';
 import { GameScene } from './game/scenes/GameScene';
 import { services } from './game/core/services';
+import { chooseResolution, installCrispText, VIEW } from './game/core/view';
+import { installSim } from './dev/sim';
+import { installGameClockTweens } from './game/core/clock';
 
 async function boot(): Promise<void> {
   await services.init();
+  const res = chooseResolution();
+  installCrispText();
+  installGameClockTweens();
 
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
@@ -16,11 +22,11 @@ async function boot(): Promise<void> {
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
-      width: GAME_WIDTH,
-      height: GAME_HEIGHT,
+      width: Math.round(VIEW.w * res),
+      height: Math.round(GAME_HEIGHT * res),
     },
     input: {
-      activePointers: 3,
+      activePointers: 4,
     },
     physics: {
       default: 'arcade',
@@ -41,6 +47,8 @@ async function boot(): Promise<void> {
   const game = new Phaser.Game(config);
   // debug/testing handle — harmless in an offline game, used by Playwright E2E
   (window as unknown as { __otf: Phaser.Game }).__otf = game;
+  installSim(game);
+  (window as unknown as { __otfView: typeof VIEW }).__otfView = VIEW;
 
   // lock to landscape-ish presentation on devices that respect it
   try {

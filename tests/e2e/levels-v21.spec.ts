@@ -70,7 +70,7 @@ test('4-4: door sinks, then a bridge erupts in the pit behind you', async ({ pag
   // press the plate (col 5) → w1 sinks → k1 bridge rises via trap-complete chain
   await place(page, 165, 452);
   await waitTrap(page, 'w1', ['done'], 6000);
-  await waitTrap(page, 'k1', ['triggered', 'active', 'done'], 6000);
+  await waitTrap(page, 'k1', ['done'], 6000);
 
   // the riser bridge must be physically real now
   const solid = await page.evaluate(() => {

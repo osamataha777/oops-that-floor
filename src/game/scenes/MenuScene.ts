@@ -8,6 +8,7 @@ import { completionCount } from '../../services/progress';
 import { decodeChallenge, encodeChallenge } from '../../services/challenge';
 import { LEVELS, levelAt } from '../levels/index';
 import { isNative, shareText } from '../../platform/native';
+import { setupCamera } from '../core/view';
 import { ACHIEVEMENTS } from '../../services/achievements';
 
 export class MenuScene extends Phaser.Scene {
@@ -19,6 +20,7 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     const theme = THEMES[0];
+    setupCamera(this);
     this.cameras.main.setBackgroundColor(theme.bg);
     this.cameras.main.fadeIn(200);
 

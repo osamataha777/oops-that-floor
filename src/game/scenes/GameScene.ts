@@ -1,25 +1,51 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../core/config';
-import { chapterTheme, TXT, hex } from '../ui/theme';
-import { makeButton, makeChip, panel, dim, tinyText } from '../ui/widgets';
+import { GAME_HEIGHT } from '../core/config';
+import { chapterTheme, TXT } from '../ui/theme';
+import { makeButton, makeChip, panel, dim, toast, iconButton } from '../ui/widgets';
 import { TouchControls, InputManager } from '../ui/TouchControls';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { Player } from '../entities/Player';
 import { LevelRuntime } from '../runtime/LevelRuntime';
-import { LEVELS, levelAt, indexOfLevel, chapterIds } from '../levels/index';
+import { LEVELS, levelAt, chapterIds } from '../levels/index';
 import { LevelDef } from '../levels/types';
 import { services } from '../core/services';
+import { VIEW, setupCamera } from '../core/view';
+import { MOTION } from '../anim/motion';
 import { recordAttempt, recordCompletion } from '../../services/progress';
 import { evaluateAchievements } from '../../services/achievements';
-import { pickQuip, playDeathAnim, deathAnimFor, victoryConfetti, floatQuip, DEATH_QUIPS } from '../effects/juice';
+import { pickQuip, deathAnimFor, floatQuip, Fx } from '../effects/juice';
 import { DeathCause } from '../traps/context';
-import { haptic, onBackButton, shareCard } from '../../platform/native';
+import { onBackButton, shareCard } from '../../platform/native';
 import { renderShareCard } from '../../services/shareCard';
 import { challengeText, encodeChallenge } from '../../services/challenge';
+import { paintBackdrop } from '../world/Backdrop';
+import { FeedbackEvent } from '../feedback/FeedbackManager';
+import { DRAW_OPTS } from '../traps/impl/draw';
+import { transitionTo } from '../ui/transition';
 
-type PlayState = 'intro' | 'playing' | 'dying' | 'complete' | 'paused';
+export type PlayState = 'intro' | 'playing' | 'paused' | 'dying' | 'complete' | 'exiting';
 
-const RESPAWN_ANIM_MS = 320;
+/**
+ * Legal transitions. Anything else is rejected (and counted, so tests can
+ * assert no illegal transition was ever attempted in a session).
+ */
+const TRANSITIONS: Record<PlayState, PlayState[]> = {
+  intro: ['playing', 'exiting'],
+  playing: ['paused', 'dying', 'complete', 'exiting'],
+  paused: ['playing', 'exiting'],
+  dying: ['playing', 'exiting'],
+  complete: ['exiting'],
+  exiting: [],
+};
+
+const DEATH_FX: Record<DeathCause, FeedbackEvent> = {
+  spikes: 'death.spikes',
+  crush: 'death.crush',
+  squash: 'death.crush',
+  fall: 'death.void',
+  void: 'death.void',
+  hazard: 'death.hazard',
+};
 
 export class GameScene extends Phaser.Scene {
   private levelIndex = 0;
@@ -28,15 +54,19 @@ export class GameScene extends Phaser.Scene {
   private player!: Player;
   private ctl!: InputManager;
   private touchUI: TouchControls | null = null;
-  private state: PlayState = 'intro';
+  private fx!: Fx;
+  state: PlayState = 'intro';
+  /** Rejected transitions this visit (diagnostics). */
+  illegalTransitions = 0;
   private deathsThisVisit = 0;
   private challengeDeaths: number | null = null;
-  private hudLevel!: Phaser.GameObjects.Container;
-  private hudDeaths!: Phaser.GameObjects.Container;
+  private hudDeaths!: Phaser.GameObjects.Container & { labelObj?: Phaser.GameObjects.Text };
   private overlay: Phaser.GameObjects.Container | null = null;
   private removeBack: (() => void) | null = null;
   private quipCooldown = 0;
   private startedAt = 0;
+  /** Simulated ms in 'playing' this visit (replays, stats). */
+  simMs = 0;
 
   constructor() {
     super({ key: 'Game' });
@@ -47,28 +77,44 @@ export class GameScene extends Phaser.Scene {
     this.challengeDeaths = data.challengeDeaths ?? null;
     this.def = levelAt(this.levelIndex);
     this.state = 'intro';
+    this.illegalTransitions = 0;
     this.deathsThisVisit = 0;
     this.overlay = null;
+    this.touchUI = null;
+    this.simMs = 0;
+  }
+
+  /** The only way state changes. Returns false (and does nothing) when illegal. */
+  private go(next: PlayState): boolean {
+    if (!TRANSITIONS[this.state].includes(next)) {
+      this.illegalTransitions++;
+      return false;
+    }
+    this.state = next;
+    return true;
   }
 
   create(): void {
     const theme = chapterTheme(this.def.chapter);
+    const rm = services.settings.reducedMotion;
+    DRAW_OPTS.highContrast = services.settings.highContrast;
     services.audio.setChapterRoot(this.def.chapter);
-
-    // background
-    this.cameras.main.setBackgroundColor(theme.bg);
-    this.paintBackground(theme.bgDecor);
+    const cam = setupCamera(this);
+    cam.setBackgroundColor(theme.bg);
+    paintBackdrop(this, this.def.chapter, theme, rm);
+    this.fx = new Fx(this, () => services.settings.reducedMotion);
 
     this.player = new Player(this, 0, 0);
+    this.player.view.setReduceMotion(rm);
     this.runtime = new LevelRuntime(this, this.def, theme, this.player, {
       onKill: (c) => this.kill(c),
       onGoal: () => this.complete(),
-      sfx: (n) => services.audio.sfx(n),
-      haptic: (k) => void haptic(k, services.settings.haptics),
+      feedback: (ev, o) => this.feedback(ev, o),
       quip: (t, x, y) => floatQuip(this, t, x, y),
       reduceMotion: () => services.settings.reducedMotion,
     });
-    this.player.setPosition(this.runtime.parsed.spawn.x, this.runtime.parsed.spawn.y);
+    const sp = this.runtime.parsed.spawn;
+    this.player.revive(sp.x, sp.y, false);
 
     this.physics.add.collider(this.player, this.runtime.solids);
     this.physics.add.collider(this.player, this.runtime.platforms);
@@ -76,301 +122,300 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.runtime.dynamics, this.runtime.solids);
     this.physics.add.collider(this.runtime.dynamics, this.runtime.dynamics);
 
-    this.player.onEvent = (e) => {
-      if (e === 'jump') {
-        services.audio.sfx('jump');
-        this.runtime.notifyJump();
-        if (!services.settings.reducedMotion) this.dust(4);
-      } else if (e === 'land') {
-        services.audio.sfx('land');
-        this.runtime.notifyLand();
-        void haptic('light', services.settings.haptics && Math.abs((this.player.body as Phaser.Physics.Arcade.Body).velocity.y) > 200);
-        if (!services.settings.reducedMotion) this.dust(7);
-      }
-    };
+    this.player.onEvent = (e, impact) => this.onPlayerEvent(e, impact ?? 0);
 
     // input
     this.ctl = new InputManager(this);
-    this.input.addPointer(2); // 3 total pointers for multitouch
     if (TouchControls.shouldShow()) this.touchUI = new TouchControls(this, this.ctl, services.settings);
+    const kb = this.input.keyboard;
+    kb?.on('keydown-ESC', () => this.togglePause());
+    kb?.on('keydown-P', () => this.togglePause());
+    kb?.on('keydown-R', () => this.manualRestart());
+    kb?.on('keydown-ENTER', () => this.state === 'complete' && this.goNext());
+    this.removeBack = onBackButton(() => this.onBack());
+    // App backgrounded / tab hidden → pause so nothing happens off-screen.
+    this.game.events.on(Phaser.Core.Events.HIDDEN, this.autoPause, this);
 
-    this.input.keyboard!.on('keydown-ESC', () => this.togglePause());
-    this.input.keyboard!.on('keydown-P', () => this.togglePause());
-    this.input.keyboard!.on('keydown-R', () => this.manualRestart());
-    this.removeBack = onBackButton(() => {
-      if (this.state === 'paused') this.closeOverlay();
-      else this.togglePause();
-    });
+    services.feedback.attachShake((ms, k) => this.cameras.main.shake(ms, k));
 
     this.buildHud();
-    this.cameras.main.setBounds(0, 0, this.runtime.parsed.width, this.runtime.parsed.height);
-    this.cameras.main.fadeIn(220);
-
-    // intro card
-    this.showIntroCard();
+    cam.fadeIn(MOTION.scene.fadeIn);
+    this.showIntro();
     this.startedAt = this.time.now;
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.removeBack?.();
+      this.game.events.off(Phaser.Core.Events.HIDDEN, this.autoPause, this);
+      services.feedback.attachShake(null);
       this.runtime?.destroy();
+      this.player?.destroy();
     });
   }
 
-  private paintBackground(decor: number): void {
-    const theme = chapterTheme(this.def.chapter);
-    const g = this.add.graphics().setDepth(-6);
-    // sun — soft disc drifting in the top-right
-    g.fillStyle(0xffffff, 0.35);
-    g.fillCircle(GAME_WIDTH - 150, 90, 34);
-    g.fillStyle(0xffffff, 0.18);
-    g.fillCircle(GAME_WIDTH - 150, 90, 52);
-    // far hills — slow silhouette band
-    g.fillStyle(theme.bgFar, 0.8);
-    for (let i = 0; i < 6; i++) {
-      g.fillEllipse(i * 200 + 60, GAME_HEIGHT + 40, 300, 220 + (i % 2) * 60);
-    }
-    // mid hills
-    g.fillStyle(theme.bgMid, 0.65);
-    for (let i = 0; i < 8; i++) {
-      g.fillEllipse(i * 150 - 20, GAME_HEIGHT + 70, 240, 170 + (i % 3) * 40);
-    }
-    // near ground haze
-    g.fillStyle(decor, 0.4);
-    for (let i = 0; i < 9; i++) {
-      g.fillEllipse(i * 130 + 30, GAME_HEIGHT + 100, 220, 140);
-    }
-
-    if (!services.settings.reducedMotion) {
-      // drifting clouds — cheap life
-      for (let i = 0; i < 4; i++) {
-        const cy = 40 + i * 60;
-        const cloud = this.add.container(-120 + i * 260, cy).setDepth(-5);
-        cloud.add(this.add.ellipse(0, 0, 130, 34, 0xffffff, 0.5));
-        cloud.add(this.add.ellipse(-30, -14, 60, 24, 0xffffff, 0.5));
-        cloud.add(this.add.ellipse(28, -10, 50, 20, 0xffffff, 0.5));
-        this.tweens.add({
-          targets: cloud,
-          x: GAME_WIDTH + 140,
-          duration: 24000 + i * 7000,
-          repeat: -1,
-          onRepeat: () => cloud.setX(-160),
-        });
-      }
-      // floating dust motes
-      for (let i = 0; i < 14; i++) {
-        const m = this.add.circle(Math.random() * GAME_WIDTH, Math.random() * GAME_HEIGHT, 1.5 + Math.random(), 0xffffff, 0.25).setDepth(-4);
-        this.tweens.add({ targets: m, y: m.y - 40, alpha: 0, duration: 4000 + Math.random() * 4000, repeat: -1, yoyo: true, delay: Math.random() * 3000 });
-      }
-    }
-
-    // vignette — subtle darkening at edges for depth
-    const v = this.add.graphics().setDepth(-2);
-    v.fillStyle(0x000000, 0.06);
-    v.fillRect(0, 0, GAME_WIDTH, 26);
-    v.fillRect(0, GAME_HEIGHT - 26, GAME_WIDTH, 26);
-    v.fillStyle(0x000000, 0.04);
-    v.fillRect(0, 0, 20, GAME_HEIGHT);
-    v.fillRect(GAME_WIDTH - 20, 0, 20, GAME_HEIGHT);
-
-    this.paintChapterMotif(theme);
+  private feedback(ev: FeedbackEvent, o?: { intensity?: number }): void {
+    services.fx(ev, o);
+    // Pip reacts to the world (selectively — reactions never spoil a trap
+    // before it fires, they only follow it).
+    const v = this.player?.view;
+    if (!v || this.state !== 'playing') return;
+    if (ev === 'goal.flee') {
+      v.express('shock', 650);
+      const g = this.runtime.goal;
+      v.lookAt({ x: g.x + g.w / 2, y: g.y + g.h / 2 });
+      this.time.delayedCall(900, () => v.lookAt(null));
+    } else if (ev === 'goal.caught') v.express('smug', 700);
+    else if (ev === 'trap.spikes' || ev === 'trap.wall' || ev === 'trap.gravflip') v.express('shock', 480);
+    else if (ev === 'trap.crumble') v.express('nervous', 520);
+    else if (ev === 'trap.warn') v.express('suspicious', 420);
+    else if (ev === 'trap.boing') v.express('defeated', 700);
+    else if (ev === 'trap.spring') v.express('happy', 400);
   }
 
-  /** Per-chapter ambient flavor — the worlds should differ at a glance. */
-  private paintChapterMotif(theme: ReturnType<typeof chapterTheme>): void {
-    const rm = services.settings.reducedMotion;
-    const ch = this.def.chapter;
-    if (ch === 1) {
-      // dandelion puffs drifting — innocent, pastoral
-      for (let i = 0; i < 8; i++) {
-        const p = this.add.circle(Math.random() * GAME_WIDTH, Math.random() * GAME_HEIGHT * 0.7, 2 + Math.random() * 2, 0xffffff, 0.35).setDepth(-4);
-        if (!rm) this.tweens.add({ targets: p, x: p.x + 60 + Math.random() * 60, y: p.y + 90 + Math.random() * 80, alpha: 0.1, duration: 9000 + Math.random() * 7000, repeat: -1, yoyo: true });
-      }
-    } else if (ch === 2) {
-      // wind streaks — the world is in a hurry
-      const g = this.add.graphics().setDepth(-5);
-      for (let i = 0; i < 10; i++) {
-        const y = 30 + (i * GAME_HEIGHT) / 11;
-        const w = 40 + (i % 3) * 40;
-        const streak = g.fillStyle(0xffffff, 0.12).fillRect(0, 0, w, 2).setX(-80).setY(y);
-        if (!rm) this.tweens.add({ targets: streak, x: GAME_WIDTH + 80, duration: 5000 + i * 900, repeat: -1, delay: i * 600, onRepeat: () => streak.setX(-80) });
-      }
-    } else if (ch === 3) {
-      // drifting chevrons — up is a suggestion here
-      const g = this.add.graphics().setDepth(-5);
-      for (let i = 0; i < 7; i++) {
-        const cx = 80 + i * 130;
-        const cy = 60 + (i % 3) * 140;
-        const up = i % 2 === 0;
-        const cg = this.add.graphics().setDepth(-5).setPosition(cx, cy).setAlpha(0.14);
-        cg.lineStyle(3, theme.bgFar, 1);
-        cg.beginPath();
-        cg.moveTo(-9, up ? 5 : -5); cg.lineTo(0, up ? -5 : 5); cg.lineTo(9, up ? 5 : -5);
-        cg.strokePath();
-        if (!rm) this.tweens.add({ targets: cg, y: cy + (up ? -14 : 14), duration: 2600 + i * 300, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-      }
-    } else if (ch === 4) {
-      // confetti motes — chaos confetti, slowly tumbling
-      const cols = [theme.accent, theme.bgMid, 0xffffff];
-      for (let i = 0; i < 14; i++) {
-        const m = this.add.rectangle(Math.random() * GAME_WIDTH, Math.random() * GAME_HEIGHT, 7, 4, cols[i % 3], 0.3).setDepth(-4).setAngle(Math.random() * 90);
-        if (!rm) this.tweens.add({ targets: m, angle: m.angle + 360, y: m.y + 50 + Math.random() * 60, duration: 7000 + Math.random() * 6000, repeat: -1, yoyo: true, delay: Math.random() * 3000 });
-      }
-    } else if (ch === 5) {
-      // rising embers — the finale smoulders
-      for (let i = 0; i < 16; i++) {
-        const e = this.add.circle(Math.random() * GAME_WIDTH, GAME_HEIGHT * 0.5 + Math.random() * GAME_HEIGHT * 0.5, 1.4 + Math.random() * 1.6, 0xffb27a, 0.4).setDepth(-4);
-        if (!rm) this.tweens.add({ targets: e, y: e.y - 140 - Math.random() * 120, alpha: 0, duration: 5000 + Math.random() * 5000, repeat: -1, delay: Math.random() * 4000, onRepeat: () => { e.y = GAME_HEIGHT * 0.5 + Math.random() * GAME_HEIGHT * 0.5; e.setAlpha(0.4); } });
-      }
-    }
+  private onPlayerEvent(e: string, impact: number): void {
+    const p = this.player;
+    const g = p.gSign;
+    const feetY = g === 1 ? p.y + 13 : p.y - 13;
+    if (e === 'jump') {
+      this.feedback('player.jump');
+      this.runtime.notifyJump();
+      this.fx.dust(p.x, feetY, 4, g);
+    } else if (e === 'land' || e === 'landHard') {
+      this.feedback(e === 'landHard' ? 'player.landHard' : 'player.land', { intensity: impact });
+      this.runtime.notifyLand();
+      this.fx.dust(p.x, feetY, e === 'landHard' ? 10 : 5, g);
+    } else if (e === 'skid') {
+      this.feedback('player.skid');
+      this.fx.dust(p.x - p.facing * 6, feetY, 3, g);
+    } else if (e === 'bonk') this.feedback('player.bonk');
   }
+
+  // ---- HUD -------------------------------------------------------------------
 
   private buildHud(): void {
-    this.hudLevel = makeChip(this, 0, 30, ` ${this.def.id}  ${this.def.name} `);
-    this.hudLevel.setDepth(40).setPosition(8 + this.hudLevel.width / 2, 30);
-    const pauseBtn = makeButton(this, GAME_WIDTH - 34, 34, 44, 44, '❚❚', { fill: 0x4a4038, depth: 40 });
-    pauseBtn.on('pointerup', () => this.togglePause());
-    this.add.existing(pauseBtn);
-    this.hudDeaths = makeChip(this, 0, 30, '☠ 0');
-    this.hudDeaths.setDepth(40).setPosition(GAME_WIDTH - 60 - this.hudDeaths.width / 2, 30);
-    pauseBtn.setAlpha(0.65);
+    const L = 12;
+    const R = VIEW.w - 12;
+    const tag = makeChip(this, 0, 30, `${this.def.id}  ${this.def.name}`, 0x2c2622, 0.72);
+    tag.setPosition(L + tag.width / 2, 30).setDepth(40).setScrollFactor(0, 0, true);
+    const pauseBtn = iconButton(this, R - 22, 30, 'pause', () => this.togglePause());
+    pauseBtn.setDepth(41).setScrollFactor(0, 0, true);
+    this.hudDeaths = makeChip(this, 0, 30, '☠ 0', 0x2c2622, 0.72);
+    this.hudDeaths.setPosition(R - 56 - this.hudDeaths.width / 2, 30).setDepth(40).setScrollFactor(0, 0, true);
+    if (this.challengeDeaths !== null) {
+      const ch = makeChip(this, 0, 64, `Challenge: ≤ ${this.challengeDeaths + 1} tries`, 0x4a72b0, 0.9);
+      ch.setPosition(L + ch.width / 2, 64).setDepth(40).setScrollFactor(0, 0, true);
+    }
   }
 
-  private showIntroCard(): void {
-    const t = this.add
-      .text(GAME_WIDTH / 2, 200, `${this.def.id}\n${this.def.name}`, { ...TXT.h1, align: 'center' })
-      .setOrigin(0.5)
-      .setDepth(45)
-      .setAlpha(0);
-    this.tweens.add({ targets: t, alpha: 1, duration: 160 });
-    this.tweens.add({ targets: t, alpha: 0, y: 180, delay: 1100, duration: 240, onComplete: () => t.destroy() });
+  /** Compact, non-blocking level banner + (earned) tip. Control is instant. */
+  private showIntro(): void {
+    const theme = chapterTheme(this.def.chapter);
+    const firstOfChapter = this.def.index === 1;
+    const cx = VIEW.w / 2;
+    const c = this.add.container(cx, firstOfChapter ? 150 : 86).setDepth(45).setScrollFactor(0, 0, true).setAlpha(0);
+    if (firstOfChapter) {
+      const t1 = this.add.text(0, -22, `Chapter ${this.def.chapter}`, { ...TXT.small, fontSize: '16px', color: '#fffaf0' }).setOrigin(0.5);
+      const t2 = this.add.text(0, 8, theme.name, { ...TXT.h1, fontSize: '40px', color: '#fffaf0', stroke: '#2c2622', strokeThickness: 8 }).setOrigin(0.5);
+      const t3 = this.add.text(0, 44, theme.tagline, { ...TXT.small, fontSize: '15px', color: '#fffaf0', stroke: '#2c2622', strokeThickness: 5 }).setOrigin(0.5);
+      t1.setStroke('#2c2622', 5);
+      c.add([t1, t2, t3]);
+    } else {
+      const t = this.add.text(0, 0, this.def.name, { ...TXT.h2, fontSize: '26px', color: '#fffaf0', stroke: '#2c2622', strokeThickness: 7 }).setOrigin(0.5);
+      c.add(t);
+    }
+    const hold = firstOfChapter ? MOTION.chapter.cardMs : 900;
+    this.tweens.add({ targets: c, alpha: 1, y: c.y + 6, duration: 180, ease: 'Quad.easeOut' });
+    this.tweens.add({ targets: c, alpha: 0, y: c.y - 10, delay: hold, duration: 260, onComplete: () => c.destroy() });
+
     // Progressive hint: the tip only appears once the player has earned it —
     // a few deaths to the trick first preserves the first-time surprise.
-    const earnedTip = (services.save.levels[this.def.id]?.totalAttempts ?? 0) + this.deathsThisVisit >= 3;
-    const tip = earnedTip ? this.def.tip : undefined;
-    if (tip) {
-      const tt = this.add
-        .text(GAME_WIDTH / 2, 268, tip, { ...TXT.small, align: 'center' })
-        .setOrigin(0.5)
-        .setDepth(45)
-        .setAlpha(0);
-      this.tweens.add({ targets: tt, alpha: 0.9, duration: 160 });
-      this.tweens.add({ targets: tt, alpha: 0, delay: 2000, duration: 300, onComplete: () => tt.destroy() });
-    }
+    const earned = (services.save.levels[this.def.id]?.totalAttempts ?? 0) + this.deathsThisVisit >= 3;
+    if (earned && this.def.tip) this.showTip(this.def.tip);
+
     this.time.delayedCall(120, () => {
-      if (this.state === 'intro') this.state = 'playing';
+      if (this.state === 'intro') this.go('playing');
     });
   }
+
+  private tipShown = false;
+  private showTip(tip: string): void {
+    if (this.tipShown) return;
+    this.tipShown = true;
+    toast(this, `💡 ${tip}`, { y: GAME_HEIGHT - 26, hold: 3600, depth: 44 });
+  }
+
+  // ---- loop --------------------------------------------------------------------
 
   update(_t: number, dt: number): void {
     // Simulation runs ONLY while the player has control. This keeps traps from
-    // arming during the intro card and makes death a clean freeze-frame.
-    if (this.state !== 'playing') return;
-    const input = this.ctl.poll();
-    this.player.update(dt, input);
-    this.runtime.update(dt);
+    // arming during the intro and makes death a clean freeze-frame.
+    if (this.state === 'playing') {
+      const input = this.ctl.poll();
+      this.player.update(dt, input);
+      this.runtime.update(dt);
+      this.simMs += dt;
+      this.updateGaze();
+    }
+    if (this.state !== 'paused') this.player.syncView(dt);
   }
 
-  // ---- death & instant restart -------------------------------------------
+  /** Pip glances at the exit when it's near and in view (unless reacting). */
+  private updateGaze(): void {
+    const g = this.runtime.goal;
+    const gx = g.x + g.w / 2;
+    const gy = g.y + g.h / 2;
+    const d = Math.hypot(gx - this.player.x, gy - this.player.y);
+    if (d < 220 && d > 50) this.player.view.lookAt({ x: gx, y: gy });
+    else if (d >= 240) this.player.view.lookAt(null);
+  }
+
+  // ---- death & instant restart -------------------------------------------------
 
   private kill(cause: DeathCause): void {
-    if (this.state !== 'playing') return;
-    this.state = 'dying';
+    if (!this.go('dying')) return;
     this.deathsThisVisit += 1;
     recordAttempt(services.save, this.def.id);
     const won = evaluateAchievements(services.save, { kind: 'death', levelId: this.def.id });
     services.persistSaveSoon();
     this.refreshDeathChip();
 
+    const px = this.player.x;
+    const py = this.player.y;
     this.player.killInstant();
-    this.player.shocked();
-    services.audio.sfx(cause === 'crush' ? 'splat' : cause === 'spikes' ? 'pop' : 'splat');
-    void haptic('heavy', services.settings.haptics);
-    if (!services.settings.reducedMotion) this.cameras.main.shake(120, 0.006);
+    this.feedback(DEATH_FX[cause]);
+    if (cause === 'spikes') this.fx.puff(px, py, 12);
+    if (cause === 'crush' || cause === 'squash') this.fx.chips(px, py + 10, 0x3d3b74, 8);
 
-    if (this.quipCooldown < this.time.now && Math.random() < 0.42) {
+    if (this.quipCooldown < this.time.now && (this.deathsThisVisit === 1 || Math.random() < 0.4)) {
       this.quipCooldown = this.time.now + 1400;
-      floatQuip(this, pickQuip(cause), this.player.x, this.player.y - 40);
+      floatQuip(this, pickQuip(cause), px, py - 46);
     }
+    if (this.deathsThisVisit === 3 && this.def.tip) this.showTip(this.def.tip);
 
-    playDeathAnim(this, this.player, deathAnimFor(cause), services.settings.reducedMotion, () => this.respawn());
+    this.player.view.playDeath(deathAnimFor(cause), () => this.respawn());
     for (const a of won) this.achievementToast(a.title);
   }
 
   private respawn(): void {
     // Only the death path may respawn — guards against pause/manualRestart races.
     if (this.state !== 'dying') return;
+    this.restoreLevel(true);
+    this.go('playing');
+  }
+
+  private restoreLevel(dizzy: boolean): void {
     this.runtime.reset();
-    this.player.setVisible(true);
-    this.player.revive(this.runtime.parsed.spawn.x, this.runtime.parsed.spawn.y);
-    this.ctl.clear();
-    this.state = 'playing';
+    const sp = this.runtime.parsed.spawn;
+    this.player.revive(sp.x, sp.y, dizzy && this.deathsThisVisit > 0);
+    this.ctl.clearEdges();
+    this.feedback('respawn');
   }
 
   private refreshDeathChip(): void {
-    const chip = this.hudDeaths as Phaser.GameObjects.Container & { labelObj?: Phaser.GameObjects.Text };
-    chip.labelObj?.setText(`☠ ${this.deathsThisVisit}`);
+    this.hudDeaths.labelObj?.setText(`☠ ${this.deathsThisVisit}`);
+    if (!services.settings.reducedMotion) {
+      this.tweens.killTweensOf(this.hudDeaths);
+      this.hudDeaths.setScale(1);
+      this.tweens.add({ targets: this.hudDeaths, scale: 1.18, duration: 90, yoyo: true, ease: 'Quad.easeOut' });
+    }
   }
 
-  // ---- completion ----------------------------------------------------------
+  // ---- completion ----------------------------------------------------------------
 
   private complete(): void {
-    if (this.state !== 'playing') return;
-    this.state = 'complete';
-    this.player.setTexture('pip-happy');
-    this.player.body!.enable = false;
-    services.audio.sfx('goal');
-    services.audio.sfx('confetti');
-    void haptic('success', services.settings.haptics);
-    victoryConfetti(this, this.player.x, this.player.y);
-
+    if (!this.go('complete')) return;
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    body.setVelocity(0, 0);
+    body.enable = false;
+    this.touchUI?.setEnabled(false);
     const attempts = this.deathsThisVisit + 1;
-    const chapterIdsList = chapterIds(this.def.chapter);
+    const hardWon = this.deathsThisVisit >= 4;
+    this.player.view.celebrate(hardWon || this.deathsThisVisit === 0);
+    this.feedback('goal.reach');
+    this.fx.victory(this.player.x, this.player.y, hardWon);
+
+    const chapterList = chapterIds(this.def.chapter);
     const next = this.levelIndex + 1 < LEVELS.length ? LEVELS[this.levelIndex + 1].id : null;
-    const res = recordCompletion(services.save, this.def.id, this.levelIndex, attempts, LEVELS.length, next, chapterIdsList);
+    const res = recordCompletion(services.save, this.def.id, this.levelIndex, attempts, LEVELS.length, next, chapterList);
     const ctx = { kind: 'complete' as const, levelId: this.def.id, attemptsUsed: attempts, chapterIds: { 1: chapterIds(1), 2: chapterIds(2), 3: chapterIds(3), 4: chapterIds(4), 5: chapterIds(5) }, totalLevels: LEVELS.length };
     const won = evaluateAchievements(services.save, ctx);
     services.persistSave();
-    for (const a of won) this.time.delayedCall(600, () => this.achievementToast(a.title));
+    won.forEach((a, i) => this.time.delayedCall(700 + i * 500, () => this.achievementToast(a.title)));
 
-    this.time.delayedCall(services.settings.reducedMotion ? 250 : 750, () => this.showCompleteOverlay(attempts, res.firstTry));
+    const chapterDone = this.def.index === 8;
+    if (chapterDone) this.time.delayedCall(260, () => this.feedback('chapter.complete'));
+    this.time.delayedCall(services.settings.reducedMotion ? 150 : MOTION.complete.celebrateMs, () =>
+      this.showCompleteRibbon(attempts, res.firstTry, chapterDone),
+    );
   }
 
-  private showCompleteOverlay(attempts: number, firstTry: boolean): void {
-    if (this.overlay) return;
-    const c = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setDepth(60);
-    c.add(dim(this));
-    c.add(panel(this, 420, 330));
-    c.add(this.add.text(0, -110, firstTry ? 'FIRST TRY?!' : 'Level Clear!', TXT.h1).setOrigin(0.5));
-    const detail = this.challengeDeaths !== null
-      ? `attempts: ${attempts}   (target: ≤${this.challengeDeaths + 1})`
-      : `attempts: ${attempts}`;
-    c.add(this.add.text(0, -62, detail, TXT.body).setOrigin(0.5));
-    const quip = firstTry ? 'Suspiciously good.' : DEATH_QUIPS.generic[Math.floor(Math.random() * 4)];
-    c.add(this.add.text(0, -24, quip, TXT.small).setOrigin(0.5));
+  /** Fast, low-friction success: a ribbon with one dominant "Next" action. */
+  private showCompleteRibbon(attempts: number, firstTry: boolean, chapterDone: boolean): void {
+    if (this.overlay || this.state !== 'complete') return;
+    const W = VIEW.w;
+    const c = this.add.container(W / 2, GAME_HEIGHT / 2).setDepth(60).setScrollFactor(0, 0, true);
+    const shade = this.add.rectangle(0, 0, W, GAME_HEIGHT, 0x1f1a16, 0.28);
+    c.add(shade);
+    const bandH = chapterDone ? 200 : 150;
+    const band = this.add.graphics();
+    band.fillStyle(0x000000, 0.18).fillRect(-W / 2, -bandH / 2 + 6, W, bandH);
+    band.fillStyle(0xfffaf0, 1).fillRect(-W / 2, -bandH / 2, W, bandH);
+    band.fillStyle(chapterTheme(this.def.chapter).accent, 1).fillRect(-W / 2, -bandH / 2, W, 6);
+    c.add(band);
 
-    const next = this.levelIndex + 1 < LEVELS.length;
-    const bNext = makeButton(this, 0, 40, 220, 52, next ? 'Next level' : 'Back to menu', { fill: 0x58a05c });
-    bNext.on('pointerup', () => {
-      services.audio.sfx('click');
-      this.closeOverlay();
-      if (next) this.scene.restart({ index: this.levelIndex + 1 });
-      else this.scene.start('Menu');
-    });
-    const row = this.add.container(0, 112);
-    const bReplay = makeButton(this, -140, 0, 120, 42, 'Replay', {});
-    bReplay.on('pointerup', () => { services.audio.sfx('click'); this.scene.restart({ index: this.levelIndex }); });
-    const bShare = makeButton(this, 0, 0, 120, 42, 'Share', { fill: 0x4a72b0 });
-    bShare.on('pointerup', () => void this.shareResult(attempts));
-    const bMenu = makeButton(this, 140, 0, 120, 42, 'Menu', { fill: 0x6b5e52 });
-    bMenu.on('pointerup', () => { services.audio.sfx('back'); this.scene.start('Select'); });
-    row.add([bReplay, bShare, bMenu]);
+    const headline = chapterDone
+      ? `Chapter ${this.def.chapter} cleared!`
+      : firstTry ? 'First try?!' : attempts >= 10 ? 'FINALLY.' : 'Nailed it.';
+    const sub = this.challengeDeaths !== null
+      ? (attempts <= this.challengeDeaths + 1 ? `Challenge beaten — ${attempts} vs ${this.challengeDeaths + 1}` : `${attempts} tries (target ${this.challengeDeaths + 1}). So close.`)
+      : `${this.def.id} · ${attempts} ${attempts === 1 ? 'try' : 'tries'}${firstTry ? ' · suspiciously good' : ''}`;
+    const left = -Math.min(380, W / 2 - 40);
+    c.add(this.add.text(left, -bandH / 2 + 34, headline, { ...TXT.h1, fontSize: '34px' }).setOrigin(0, 0.5));
+    c.add(this.add.text(left, -bandH / 2 + 70, sub, TXT.body).setOrigin(0, 0.5));
+    if (chapterDone) {
+      const nextTheme = chapterTheme(Math.min(5, this.def.chapter + 1));
+      const line = this.def.chapter < 5 ? `Next: ${nextTheme.name} — ${nextTheme.tagline}` : 'You beat the floor. The floor is furious.';
+      c.add(this.add.text(left, -bandH / 2 + 108, line, { ...TXT.small, fontSize: '15px' }).setOrigin(0, 0.5));
+    }
+
+    const hasNext = this.levelIndex + 1 < LEVELS.length;
+    const right = Math.min(380, W / 2 - 40);
+    const bNext = makeButton(this, right - 110, 0, 220, 64, hasNext ? 'Next  ▶' : 'Finale ★', { fill: 0x3f9d57 });
+    bNext.on('pointerup', () => this.goNext());
+    const row = this.add.container(right - 110, bandH / 2 - 30);
+    const mini = (x: number, label: string, cb: () => void) => {
+      const b = makeButton(this, x, 0, 64, 36, label, { fill: 0x5a4f46, textStyle: { ...TXT.light, fontSize: '15px' } });
+      b.on('pointerup', cb);
+      row.add(b);
+    };
+    mini(-74, '↻', () => this.leave(() => this.scene.restart({ index: this.levelIndex })));
+    mini(0, 'Share', () => void this.shareResult(attempts));
+    mini(74, '☰', () => this.leave(() => this.scene.start('Select', { focus: this.def.id })));
     c.add([bNext, row]);
     this.overlay = c;
-    this.tweens.add({ targets: c, scaleX: 1.02, scaleY: 1.02, duration: 140, yoyo: true });
+    if (!services.settings.reducedMotion) {
+      c.setScale(1, 0.2).setAlpha(0);
+      this.tweens.add({ targets: c, scaleY: 1, alpha: 1, duration: MOTION.ui.panelIn.ms, ease: MOTION.ui.panelIn.ease });
+    }
+  }
+
+  private goNext(): void {
+    if (this.state !== 'complete') return;
+    this.feedback('ui.tap');
+    const hasNext = this.levelIndex + 1 < LEVELS.length;
+    this.leave(() => (hasNext ? this.scene.restart({ index: this.levelIndex + 1 }) : this.scene.start('Menu', { finale: true })));
+  }
+
+  /** Single exit path: lock the state, quick fade, then switch. */
+  private leave(go: () => void): void {
+    if (!this.go('exiting')) return;
+    this.touchUI?.setEnabled(false);
+    this.physics.world.resume();
+    this.tweens.resumeAll();
+    transitionTo(this, go);
   }
 
   private async shareResult(attempts: number): Promise<void> {
-    services.audio.sfx('click');
+    this.feedback('ui.tap');
     const challenge = { levelIndex: this.levelIndex, deaths: this.deathsThisVisit };
     const text = challengeText(challenge, this.def.id);
     const png = renderShareCard({
@@ -380,39 +425,61 @@ export class GameScene extends Phaser.Scene {
       caption: this.deathsThisVisit === 0 ? 'Zero casualties. Show-off.' : pickQuip('generic'),
       code: encodeChallenge(challenge),
     });
-    await shareCard(png, text);
+    const r = await shareCard(png, text);
+    if (!this.scene.isActive()) return;
+    if (r === 'copied') toast(this, 'Card saved · challenge text copied');
+    else if (r === 'failed') toast(this, 'Sharing isn’t available here');
   }
 
-  // ---- pause ---------------------------------------------------------------
+  // ---- pause -------------------------------------------------------------------
+
+  private onBack(): void {
+    if (this.state === 'paused') this.resume();
+    else if (this.state === 'complete') this.leave(() => this.scene.start('Select', { focus: this.def.id }));
+    else this.togglePause();
+  }
+
+  private autoPause(): void {
+    if (this.state === 'playing') this.togglePause();
+  }
 
   togglePause(): void {
     if (this.state === 'paused') {
-      this.closeOverlay();
+      this.resume();
       return;
     }
     // Only live play can pause — intro, dying and complete are excluded so no
     // overlay can ever capture an in-flight respawn or level transition.
-    if (this.state !== 'playing') return;
-    this.state = 'paused';
+    if (!this.go('paused')) return;
     this.physics.world.pause();
-    services.audio.sfx('click');
-    const c = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setDepth(70);
+    this.tweens.pauseAll();
+    this.touchUI?.setEnabled(false);
+    this.feedback('ui.tap');
+    this.openPauseMenu();
+  }
+
+  private openPauseMenu(): void {
+    const c = this.add.container(VIEW.w / 2, GAME_HEIGHT / 2).setDepth(70).setScrollFactor(0, 0, true);
     c.add(dim(this));
-    c.add(panel(this, 380, 360));
-    c.add(this.add.text(0, -130, 'Paused', TXT.h1).setOrigin(0.5));
+    c.add(panel(this, 360, 344));
+    c.add(this.add.text(0, -128, 'Paused', TXT.h1).setOrigin(0.5));
+    c.add(this.add.text(0, -94, `${this.def.id} · ${this.def.name}`, TXT.small).setOrigin(0.5));
     const mk = (y: number, label: string, cb: () => void, fill = 0x4a4038) => {
-      const b = makeButton(this, 0, y, 240, 48, label, { fill });
+      const b = makeButton(this, 0, y, 240, 50, label, { fill });
       b.on('pointerup', cb);
       c.add(b);
     };
-    mk(-60, 'Resume', () => this.closeOverlay(), 0x58a05c);
-    mk(0, 'Restart level', () => { this.closeOverlay(); this.manualRestart(); });
-    mk(60, 'Settings', () => {
+    mk(-42, 'Resume', () => this.resume(), 0x3f9d57);
+    mk(18, 'Restart level', () => {
+      this.resume();
+      this.manualRestart();
+    });
+    mk(78, 'Settings', () => {
       c.destroy();
       this.overlay = null;
       this.openSettings();
     }, 0x6b5e52);
-    mk(120, 'Quit to levels', () => { services.audio.sfx('back'); this.physics.world.resume(); this.scene.start('Select'); }, 0x6b5e52);
+    mk(138, 'Levels', () => this.leave(() => this.scene.start('Select', { focus: this.def.id })), 0x6b5e52);
     this.overlay = c;
   }
 
@@ -420,56 +487,32 @@ export class GameScene extends Phaser.Scene {
     const p = new SettingsPanel(this, () => {
       p.destroy();
       this.overlay = null;
-      this.state = 'paused';
-      this.togglePause();
+      if (this.state === 'paused') this.openPauseMenu();
     });
+    p.setScrollFactor(0, 0, true).setX(VIEW.w / 2);
     this.overlay = p;
   }
 
-  private closeOverlay(): void {
+  private resume(): void {
+    if (this.state !== 'paused') return;
     this.overlay?.destroy();
     this.overlay = null;
     this.physics.world.resume();
-    if (this.state === 'paused') this.state = 'playing';
+    this.tweens.resumeAll();
+    this.touchUI?.setEnabled(true);
+    this.ctl.clearEdges();
+    this.go('playing');
   }
 
   private manualRestart(): void {
-    if (this.state === 'complete' || this.state === 'intro') return;
-    const wasDying = this.state === 'dying';
-    if (wasDying) this.state = 'playing'; // stale anim callback is blocked by respawn's guard
-    this.runtime.reset();
-    this.player.setVisible(true);
-    this.player.clearTint();
-    this.tweens.killTweensOf(this.player);
-    this.player.revive(this.runtime.parsed.spawn.x, this.runtime.parsed.spawn.y);
-    this.state = 'playing';
-  }
-
-  /** Small dust puff at Pip's feet — grounded feel, zero texture memory. */
-  private dust(n: number): void {
-    const p = this.add.particles(this.player.x, this.player.y + 20, 'dot', {
-      speed: { min: 20, max: 90 },
-      angle: { min: 200, max: 340 },
-      gravityY: 300,
-      lifespan: { min: 180, max: 340 },
-      scale: { start: 0.9, end: 0 },
-      alpha: { start: 0.5, end: 0 },
-      tint: 0xffffff,
-      emitting: false,
-    });
-    p.setDepth(9);
-    p.explode(n);
-    this.time.delayedCall(420, () => p.destroy());
+    if (this.state !== 'playing' && this.state !== 'dying') return;
+    if (this.state === 'dying') this.go('playing'); // pending death callback is cancelled by revive
+    this.restoreLevel(false);
   }
 
   private achievementToast(title: string): void {
-    services.audio.sfx('achievement');
-    const c = this.add.container(GAME_WIDTH / 2, -40).setDepth(80);
-    const t = this.add.text(0, 0, `★ ${title}`, TXT.chip).setOrigin(0.5);
-    const g = this.add.graphics();
-    g.fillStyle(0xf2a541, 1).fillRoundedRect(-t.width / 2 - 18, -17, t.width + 36, 34, 17);
-    c.add([g, t]);
-    this.tweens.add({ targets: c, y: 60, duration: 260, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: c, y: -60, alpha: 0, delay: 2200, duration: 300, onComplete: () => c.destroy() });
+    this.feedback('achievement');
+    toast(this, `★ ${title}`, { y: 70, hold: 2000, fill: 0xf2a541, depth: 80 });
   }
 }
+

@@ -1,23 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { toCss, padCenter, startLevel } from './helpers';
 
 // iPhone-14-ish landscape viewport with touch events
 test.use({ hasTouch: true, viewport: { width: 844, height: 390 } });
-
-const css = async (page: import('@playwright/test').Page, gx: number, gy: number) => {
-  const box = (await page.locator('canvas').boundingBox())!;
-  return { x: box.x + gx * (box.width / 960), y: box.y + gy * (box.height / 540) };
-};
-
-const startLevel = async (page: import('@playwright/test').Page, index = 0) => {
-  await page.goto('/');
-  await page.waitForSelector('canvas');
-  await page.waitForTimeout(1200);
-  await page.evaluate((i) => (window as any).__otf.scene.start('Game', { index: i }), index);
-  await page.waitForFunction(
-    () => (window as any).__otf.scene.getScene('Game').state === 'playing',
-    { timeout: 8000 },
-  );
-};
 
 const readCtl = (page: import('@playwright/test').Page) =>
   page.evaluate(() => {
@@ -44,8 +29,10 @@ const emitPtr = (
 test('real two-finger touch: hold right + jump simultaneously', async ({ page }) => {
   await startLevel(page);
   const session = await page.context().newCDPSession(page);
-  const right = await css(page, 260, 490); // R thumb zone
-  const jump = await css(page, 800, 490); // J thumb zone
+  const rc = await padCenter(page, 'R');
+  const jc = await padCenter(page, 'J');
+  const right = await toCss(page, rc.x, rc.y); // R thumb pad
+  const jump = await toCss(page, jc.x, jc.y); // J thumb pad
   const x0 = await page.evaluate(() => (window as any).__otf.scene.getScene('Game').player.x);
 
   await session.send('Input.dispatchTouchEvent', {
@@ -78,47 +65,91 @@ test('real two-finger touch: hold right + jump simultaneously', async ({ page })
 
 test('router: pointer ownership, slide handoff, cancel, multi-press', async ({ page }) => {
   await startLevel(page);
+  const L = await padCenter(page, 'L');
+  const R = await padCenter(page, 'R');
+  const J = await padCenter(page, 'J');
+  const mid = await page.evaluate(() => (window as any).__otfView.w / 2);
 
   // pointer 1 → left zone
-  await emitPtr(page, 'pointerdown', 11, 80, 500);
+  await emitPtr(page, 'pointerdown', 11, L.x, L.y);
   let c = await readCtl(page);
   expect(c).toEqual({ left: true, right: false, jumpHeld: false });
 
   // pointer 2 → jump zone while left stays held (independent ownership)
-  await emitPtr(page, 'pointerdown', 12, 800, 500);
+  await emitPtr(page, 'pointerdown', 12, J.x, J.y);
   c = await readCtl(page);
   expect(c).toEqual({ left: true, right: false, jumpHeld: true });
 
   // pointer 1 slides from left zone across to right zone → handoff
-  await emitPtr(page, 'pointermove', 11, 200, 500);
+  await emitPtr(page, 'pointermove', 11, R.x, R.y);
   c = await readCtl(page);
   expect(c).toEqual({ left: false, right: true, jumpHeld: true });
 
   // pointer 2 cancels (system gesture interrupt) — jump releases, right stays
-  await emitPtr(page, 'pointercancel', 12, 800, 500, false);
+  await emitPtr(page, 'pointercancel', 12, J.x, J.y, false);
   c = await readCtl(page);
   expect(c).toEqual({ left: false, right: true, jumpHeld: false });
 
   // second pointer also holds right — releasing pointer 1 keeps right active
-  await emitPtr(page, 'pointerdown', 13, 220, 520);
-  await emitPtr(page, 'pointerup', 11, 200, 500, false);
+  await emitPtr(page, 'pointerdown', 13, R.x + 6, R.y + 10);
+  await emitPtr(page, 'pointerup', 11, R.x, R.y, false);
   c = await readCtl(page);
   expect(c).toEqual({ left: false, right: true, jumpHeld: false });
-  await emitPtr(page, 'pointerup', 13, 220, 520, false);
+  await emitPtr(page, 'pointerup', 13, R.x + 6, R.y + 10, false);
   c = await readCtl(page);
   expect(c).toEqual({ left: false, right: false, jumpHeld: false });
 
   // dead middle zone → no control claimed
-  await emitPtr(page, 'pointerdown', 14, 450, 500);
+  await emitPtr(page, 'pointerdown', 14, mid, J.y);
   c = await readCtl(page);
   expect(c).toEqual({ left: false, right: false, jumpHeld: false });
-  await emitPtr(page, 'pointerup', 14, 450, 500, false);
+  await emitPtr(page, 'pointerup', 14, mid, J.y, false);
 
   // missed pointerup recovered by an isDown=false move
-  await emitPtr(page, 'pointerdown', 15, 800, 500);
+  await emitPtr(page, 'pointerdown', 15, J.x, J.y);
   c = await readCtl(page);
   expect(c.jumpHeld).toBe(true);
-  await emitPtr(page, 'pointermove', 15, 810, 500, false);
+  await emitPtr(page, 'pointermove', 15, J.x + 10, J.y, false);
   c = await readCtl(page);
   expect(c.jumpHeld).toBe(false);
+
+  // a finger lifted outside the canvas still releases its control
+  await emitPtr(page, 'pointerdown', 16, R.x, R.y);
+  expect((await readCtl(page)).right).toBe(true);
+  await page.evaluate(([x, y]) => (window as any).__otf.scene.getScene('Game').input.emit('pointerupoutside', { id: 16, x, y, isDown: false }), [R.x, R.y] as const);
+  expect((await readCtl(page)).right).toBe(false);
+
+  // a direction finger sliding into the jump zone does NOT jump
+  await emitPtr(page, 'pointerdown', 17, R.x, R.y);
+  await emitPtr(page, 'pointermove', 17, J.x, J.y);
+  c = await readCtl(page);
+  expect(c).toEqual({ left: false, right: true, jumpHeld: false });
+  await emitPtr(page, 'pointerup', 17, J.x, J.y, false);
+});
+
+test('held direction survives death + respawn (no re-press needed)', async ({ page }) => {
+  await startLevel(page);
+  const R = await padCenter(page, 'R');
+  await emitPtr(page, 'pointerdown', 21, R.x, R.y);
+  // kill the player through the real death path
+  await page.evaluate(() => (window as any).__otf.scene.getScene('Game').kill('spikes'));
+  await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game').state === 'playing', null, { timeout: 4000 });
+  const c = await readCtl(page);
+  expect(c.right, 'right still held after respawn').toBe(true);
+  const x0 = await page.evaluate(() => (window as any).__otf.scene.getScene('Game').player.x);
+  await page.waitForFunction((x0) => (window as any).__otf.scene.getScene('Game').player.x > x0 + 20, x0, { timeout: 4000 });
+  await emitPtr(page, 'pointerup', 21, R.x, R.y, false);
+});
+
+test('pausing releases held controls; overlay taps never reach the pads', async ({ page }) => {
+  await startLevel(page);
+  const J = await padCenter(page, 'J');
+  await emitPtr(page, 'pointerdown', 31, J.x, J.y);
+  expect((await readCtl(page)).jumpHeld).toBe(true);
+  await page.evaluate(() => (window as any).__otf.scene.getScene('Game').togglePause());
+  expect((await readCtl(page)).jumpHeld).toBe(false);
+  await emitPtr(page, 'pointerdown', 32, J.x, J.y);
+  expect((await readCtl(page)).jumpHeld, 'pads ignore input while paused').toBe(false);
+  await emitPtr(page, 'pointerup', 31, J.x, J.y, false);
+  await emitPtr(page, 'pointerup', 32, J.x, J.y, false);
 });

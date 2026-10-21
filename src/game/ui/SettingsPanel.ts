@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { makeButton, makeSlider, makeToggle, panel, tinyText, dim } from './widgets';
 import { TXT } from './theme';
 import { services } from '../core/services';
+import { VIEW } from '../core/view';
+import { GAME_HEIGHT } from '../core/config';
 
 /**
  * Shared settings panel — used from the menu and the pause overlay.
@@ -9,7 +11,7 @@ import { services } from '../core/services';
  */
 export class SettingsPanel extends Phaser.GameObjects.Container {
   constructor(scene: Phaser.Scene, onClose: () => void, opts: { onReset?: () => void } = {}) {
-    super(scene, scene.scale.width / 2, scene.scale.height / 2);
+    super(scene, VIEW.w / 2 - VIEW.ox, GAME_HEIGHT / 2);
     const s = services.settings;
 
     this.add(dim(scene));

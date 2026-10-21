@@ -27,6 +27,10 @@ export interface SettingsData {
   reducedMotion: boolean;
   controlScale: number; // 0.8..1.4
   controlSpread: boolean; // wide vs compact touch layout
+  controlOpacity: number; // 0.3..1 — how visible the touch buttons are
+  shake: boolean;       // camera shake on impacts
+  gentle: boolean;      // reduced sensory intensity (softer haptics/shake/flashes)
+  highContrast: boolean; // hazards get a bold outline + stripe pattern
   language: 'en';
 }
 
@@ -38,6 +42,10 @@ export const defaultSettings = (): SettingsData => ({
   reducedMotion: false,
   controlScale: 1,
   controlSpread: false,
+  controlOpacity: 0.7,
+  shake: true,
+  gentle: false,
+  highContrast: false,
   language: 'en',
 });
 
@@ -102,6 +110,10 @@ export function decodeSettings(raw: string | null): SettingsData {
     base.reducedMotion = j.reducedMotion === true;
     base.controlScale = typeof j.controlScale === 'number' ? Math.min(1.4, Math.max(0.8, j.controlScale)) : 1;
     base.controlSpread = j.controlSpread === true;
+    base.controlOpacity = typeof j.controlOpacity === 'number' ? Math.min(1, Math.max(0.3, j.controlOpacity)) : base.controlOpacity;
+    base.shake = j.shake !== false;
+    base.gentle = j.gentle === true;
+    base.highContrast = j.highContrast === true;
     return base;
   } catch {
     return base;

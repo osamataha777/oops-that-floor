@@ -5,7 +5,7 @@ import { CollapseTrap, GhostTrap, TimedTrap } from './impl/floors';
 import { HiddenSpikesTrap, FallBlockTrap, WallTrap, CrusherTrap } from './impl/hazards';
 import { MoverTrap, ConveyorTrap } from './impl/platforms';
 import { FakeGoalTrap, ShyGoalTrap } from './impl/goals';
-import { PlateTrap, GravFlipTrap, SpinnerTrap } from './impl/mechanisms';
+import { PlateTrap, GravFlipTrap, SpinnerTrap, SpringTrap } from './impl/mechanisms';
 
 const REGISTRY: Record<TrapType, new (def: TrapDef, ctx: TrapContext) => Trap> = {
   collapse: CollapseTrap,
@@ -22,6 +22,7 @@ const REGISTRY: Record<TrapType, new (def: TrapDef, ctx: TrapContext) => Trap> =
   timed: TimedTrap,
   ghost: GhostTrap,
   crusher: CrusherTrap,
+  spring: SpringTrap,
 };
 
 export function buildTrap(def: TrapDef, ctx: TrapContext): Trap {

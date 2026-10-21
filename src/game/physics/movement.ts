@@ -100,3 +100,18 @@ export class JumpAssist {
     this.bufferedAt = -Infinity;
   }
 }
+
+/** A jump always rises for at least this long before a release can cut it. */
+export const MIN_JUMP_MS = 50;
+
+/** Extra gravity while falling (multiplier on world gravity). Rise stays 1×. */
+export const FALL_GRAVITY_MUL = 1.22;
+
+/**
+ * Per-body extra gravity: zero while rising, (mul−1)×world gravity while
+ * falling. Sign follows the world so flipped gravity works unchanged.
+ */
+export function fallGravityExtra(vy: number, gSign: 1 | -1, worldGravityY: number, mul = FALL_GRAVITY_MUL): number {
+  const falling = vy * gSign > 0;
+  return falling ? worldGravityY * (mul - 1) : 0;
+}

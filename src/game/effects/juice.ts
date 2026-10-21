@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { COLORS } from '../core/config';
 import { DeathCause } from '../traps/context';
-import { Player } from '../entities/Player';
+import { TEX, VIEW } from '../core/view';
+import { FONT } from '../ui/theme';
 
 export const DEATH_QUIPS: Record<DeathCause | 'generic', string[]> = {
   spikes: ['It had teeth.', 'Pointy. Who knew.', 'The floor grew fangs.', 'You found the sharp part.'],
@@ -26,73 +26,7 @@ export function pickQuip(cause: DeathCause | 'generic'): string {
   return pool[i];
 }
 
-export type DeathAnim = 'pancake' | 'confetti' | 'shrink' | 'freeze' | 'poof';
-
-export function playDeathAnim(
-  scene: Phaser.Scene,
-  player: Player,
-  anim: DeathAnim,
-  reduceMotion: boolean,
-  onDone: () => void,
-): number {
-  const dur = reduceMotion ? 90 : 300;
-  switch (anim) {
-    case 'pancake':
-      player.shocked();
-      scene.tweens.add({
-        targets: player,
-        scaleY: 0.08,
-        scaleX: 1.7,
-        duration: dur,
-        ease: 'Quad.easeIn',
-        onComplete: () => onDone(),
-      });
-      break;
-    case 'confetti': {
-      player.setVisible(false);
-      burst(scene, player.x, player.y, 16);
-      scene.time.delayedCall(dur, onDone);
-      break;
-    }
-    case 'shrink':
-      player.shocked();
-      scene.tweens.add({
-        targets: player,
-        scale: 0,
-        angle: 260,
-        duration: dur,
-        ease: 'Back.easeIn',
-        onComplete: () => onDone(),
-      });
-      break;
-    case 'freeze':
-      player.shocked();
-      player.setTintFill(0xbfd4e6);
-      scene.tweens.add({
-        targets: player,
-        alpha: 0,
-        duration: dur + 80,
-        onComplete: () => {
-          player.clearTint();
-          onDone();
-        },
-      });
-      break;
-    case 'poof':
-    default: {
-      player.setVisible(false);
-      puff(scene, player.x, player.y);
-      scene.time.delayedCall(dur, onDone);
-      break;
-    }
-  }
-  return dur;
-}
-
-export function randomDeathAnim(): DeathAnim {
-  const all: DeathAnim[] = ['pancake', 'confetti', 'shrink', 'freeze', 'poof'];
-  return all[Math.floor(Math.random() * all.length)];
-}
+export type DeathAnim = 'pancake' | 'pop' | 'fall' | 'zap';
 
 /** Cause-aware gag selection — each way to fail gets a signature exit. */
 export function deathAnimFor(cause: DeathCause): DeathAnim {
@@ -102,59 +36,107 @@ export function deathAnimFor(cause: DeathCause): DeathAnim {
       return 'pancake';
     case 'void':
     case 'fall':
-      return 'poof';
+      return 'fall';
     case 'spikes':
-      return 'confetti';
-    case 'hazard':
-      return 'shrink';
+      return 'pop';
     default:
-      return 'freeze';
+      return 'zap';
   }
 }
 
-/** Geometric confetti burst — pooled particles, zero texture memory. */
-export function burst(scene: Phaser.Scene, x: number, y: number, n = 12): void {
-  const colors = [0xf2a541, 0x58c472, 0x5aa8f2, 0xf25a68, 0xfffaf0];
-  const p = scene.add.particles(x, y, 'squ', {
-    speed: { min: 90, max: 260 },
-    angle: { min: 0, max: 360 },
-    gravityY: 500,
-    lifespan: { min: 280, max: 520 },
-    scale: { start: 1, end: 0 },
-    tint: colors,
-    emitting: false,
-  });
-  p.setDepth(30);
-  p.explode(n);
-  scene.time.delayedCall(650, () => p.destroy());
+const CONFETTI = [0xf2a541, 0x58c472, 0x5aa8f2, 0xf25a68, 0xfffaf0];
+
+/**
+ * Per-scene particle pool: a handful of long-lived emitters that `explode`
+ * at a point. No emitter is ever created per jump/landing/death, so long
+ * sessions don't churn GameObjects. Destroyed with the scene.
+ */
+export class Fx {
+  private dustE: Phaser.GameObjects.Particles.ParticleEmitter;
+  private confE: Phaser.GameObjects.Particles.ParticleEmitter;
+  private puffE: Phaser.GameObjects.Particles.ParticleEmitter;
+  private chipE: Phaser.GameObjects.Particles.ParticleEmitter;
+
+  constructor(private scene: Phaser.Scene, private reduced: () => boolean) {
+    const k = 1 / TEX;
+    this.dustE = scene.add.particles(0, 0, 'dot', {
+      speed: { min: 20, max: 90 },
+      angle: { min: 200, max: 340 },
+      gravityY: 300,
+      lifespan: { min: 180, max: 340 },
+      scale: { start: 0.9 * k, end: 0 },
+      alpha: { start: 0.55, end: 0 },
+      tint: 0xfffaf0,
+      emitting: false,
+    }).setDepth(9);
+    this.confE = scene.add.particles(0, 0, 'squ', {
+      speed: { min: 90, max: 280 },
+      angle: { min: 200, max: 340 },
+      gravityY: 520,
+      rotate: { min: 0, max: 360 },
+      lifespan: { min: 380, max: 760 },
+      scale: { start: 0.8 * k, end: 0.2 * k },
+      tint: CONFETTI,
+      emitting: false,
+    }).setDepth(30);
+    this.puffE = scene.add.particles(0, 0, 'dot', {
+      speed: { min: 40, max: 150 },
+      angle: { min: 0, max: 360 },
+      lifespan: { min: 220, max: 420 },
+      scale: { start: 1.5 * k, end: 0 },
+      alpha: { start: 0.75, end: 0 },
+      tint: 0xfffaf0,
+      emitting: false,
+    }).setDepth(30);
+    this.chipE = scene.add.particles(0, 0, 'squ', {
+      speed: { min: 60, max: 170 },
+      angle: { min: 220, max: 320 },
+      gravityY: 900,
+      rotate: { min: 0, max: 360 },
+      lifespan: { min: 300, max: 600 },
+      scale: { start: 0.55 * k, end: 0.3 * k },
+      emitting: false,
+    }).setDepth(9);
+  }
+
+  /** Feet dust; `dir` biases the spray (skids throw dust backwards). */
+  dust(x: number, y: number, n: number, gSign: 1 | -1 = 1): void {
+    if (this.reduced()) return;
+    this.dustE.setConfig;
+    this.dustE.gravityY = 300 * gSign;
+    this.dustE.explode(n, x, y);
+  }
+
+  confetti(x: number, y: number, n = 18): void {
+    if (this.reduced()) n = Math.min(n, 6);
+    this.confE.explode(n, x, y);
+  }
+
+  puff(x: number, y: number, n = 10): void {
+    this.puffE.explode(this.reduced() ? 4 : n, x, y);
+  }
+
+  /** Debris chips in a material colour (crumbling floors, spike pops). */
+  chips(x: number, y: number, color: number, n = 6): void {
+    if (this.reduced()) return;
+    this.chipE.setParticleTint(color);
+    this.chipE.explode(n, x, y);
+  }
+
+  victory(x: number, y: number, big: boolean): void {
+    this.confetti(x, y - 30, big ? 30 : 16);
+    if (big && !this.reduced()) {
+      this.scene.time.delayedCall(140, () => this.confetti(x + 40, y - 50, 14));
+      this.scene.time.delayedCall(280, () => this.confetti(x - 40, y - 40, 14));
+    }
+  }
 }
 
-export function puff(scene: Phaser.Scene, x: number, y: number): void {
-  const p = scene.add.particles(x, y, 'dot', {
-    speed: { min: 40, max: 140 },
-    angle: { min: 0, max: 360 },
-    lifespan: { min: 220, max: 420 },
-    scale: { start: 1.4, end: 0 },
-    alpha: { start: 0.7, end: 0 },
-    tint: 0xfffaf0,
-    emitting: false,
-  });
-  p.setDepth(30);
-  p.explode(10);
-  scene.time.delayedCall(500, () => p.destroy());
-}
-
-export function victoryConfetti(scene: Phaser.Scene, x: number, y: number): void {
-  burst(scene, x, y - 30, 24);
-  scene.time.delayedCall(160, () => burst(scene, x + 40, y - 50, 12));
-  scene.time.delayedCall(320, () => burst(scene, x - 40, y - 40, 12));
-}
-
-/** Floating sarcastic text. Non-blocking, fades fast. */
+/** Floating sarcastic text. Non-blocking, fades fast. Stays on screen. */
 export function floatQuip(scene: Phaser.Scene, text: string, x: number, y: number): void {
   const t = scene.add
     .text(0, 0, text, {
-      fontFamily: "ui-rounded, 'SF Pro Rounded', system-ui, sans-serif",
+      fontFamily: FONT,
       fontSize: '19px',
       fontStyle: '800',
       color: '#3f372f',
@@ -163,21 +145,10 @@ export function floatQuip(scene: Phaser.Scene, text: string, x: number, y: numbe
       strokeThickness: 5,
     })
     .setOrigin(0.5)
-    .setPosition(Phaser.Math.Clamp(x, 120, scene.scale.width - 120), Math.max(60, y))
     .setDepth(50)
     .setScale(0.7);
-  scene.tweens.add({
-    targets: t,
-    scale: 1,
-    y: t.y - 14,
-    duration: 180,
-    ease: 'Back.easeOut',
-  });
-  scene.tweens.add({
-    targets: t,
-    alpha: 0,
-    delay: 900,
-    duration: 260,
-    onComplete: () => t.destroy(),
-  });
+  const half = t.width / 2 + 8;
+  t.setPosition(Phaser.Math.Clamp(x, half - VIEW.ox, 960 + VIEW.ox - half), Phaser.Math.Clamp(y, 70, 500));
+  scene.tweens.add({ targets: t, scale: 1, y: t.y - 14, duration: 180, ease: 'Back.easeOut' });
+  scene.tweens.add({ targets: t, alpha: 0, delay: 950, duration: 260, onComplete: () => t.destroy() });
 }

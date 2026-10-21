@@ -4,8 +4,8 @@ import { TRAP_TYPES } from '../../src/game/levels/types';
 import { LEVELS } from '../../src/game/levels/index';
 
 describe('trap registry surface', () => {
-  it('implements 14 trap types', () => {
-    expect(TRAP_TYPES.length).toBe(14);
+  it('implements 15 trap types', () => {
+    expect(TRAP_TYPES.length).toBe(15);
     expect(TRAP_TYPES).toContain('collapse');
     expect(TRAP_TYPES).toContain('gravflip');
     expect(TRAP_TYPES).toContain('shygoal');

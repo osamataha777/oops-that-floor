@@ -1,16 +1,18 @@
 import Phaser from 'phaser';
 import { Trap } from '../TrapBase';
-import { drawTile, drawConveyorArrows } from './draw';
-import { playerRect, overlap, cellsRect } from '../context';
+import { drawTile, drawConveyorArrows, drawMover } from './draw';
+import { playerRect, cellsRect } from '../context';
+import { spawnSolid } from './floors';
 import { TILE } from '../../core/config';
 import { Rect } from '../../levels/types';
 
-function spawnSolid(ctx: import('../context').TrapContext, r: Rect): Phaser.Physics.Arcade.Sprite {
-  const b = ctx.solids.create(r.x + r.w / 2, r.y + r.h / 2, 'px') as Phaser.Physics.Arcade.Sprite;
-  b.setDisplaySize(r.w, r.h);
-  b.refreshBody();
-  b.setVisible(false);
-  return b;
+/** True when the player's feet rest on top of `r` (respects gravity flips). */
+function standingOn(ctx: import('../context').TrapContext, r: Rect): boolean {
+  const pr = playerRect(ctx.player);
+  if (!ctx.player.grounded) return false;
+  const overX = pr.x + pr.w > r.x + 2 && pr.x < r.x + r.w - 2;
+  if (!overX) return false;
+  return ctx.player.gSign === 1 ? Math.abs(pr.y + pr.h - r.y) < 8 : Math.abs(pr.y - (r.y + r.h)) < 8;
 }
 
 /** Platform that slides toward a destination; optionally loops. Carries the player. */
@@ -19,10 +21,10 @@ export class MoverTrap extends Trap {
   private gfx!: Phaser.GameObjects.Graphics;
   private home!: { x: number; y: number };
   private dest!: { x: number; y: number };
+  private pos = { x: 0, y: 0 };
   private moving = false;
   private forward = true;
-  private lastX = 0;
-  private lastY = 0;
+  private pauseLeft = 0;
   private r!: Rect;
 
   protected arm(): void {
@@ -31,11 +33,8 @@ export class MoverTrap extends Trap {
     const d = this.toCells.length ? cellsRect(this.toCells) : { x: this.r.x + TILE * 4, y: this.r.y };
     this.dest = { x: d.x, y: d.y };
     this.gfx = this.ctx.scene.add.graphics().setDepth(4);
-    drawTile(this.gfx, { x: 0, y: 0, w: this.r.w, h: this.r.h }, this.ctx.theme, this.def.params?.tell ?? 'none');
-    // little "it moves" rivets
-    this.gfx.fillStyle(0x000000, 0.18);
-    this.gfx.fillCircle(this.r.w / 2 - 8, this.r.h / 2, 2);
-    this.gfx.fillCircle(this.r.w / 2 + 8, this.r.h / 2, 2);
+    drawMover(this.gfx, this.r.w, this.r.h, this.ctx.theme);
+    this.pos = { ...this.home };
     this.gfx.setPosition(this.r.x, this.r.y);
     this.plat = this.ctx.scene.physics.add.sprite(this.r.x + this.r.w / 2, this.r.y + this.r.h / 2, 'px');
     this.plat.setDisplaySize(this.r.w, this.r.h).setVisible(false);
@@ -43,61 +42,60 @@ export class MoverTrap extends Trap {
     body.setAllowGravity(false);
     body.setImmovable(true);
     this.ctx.dynamics.add(this.plat);
-    this.lastX = this.r.x;
-    this.lastY = this.r.y;
   }
 
   protected fire(): void {
     this.moving = true;
+    this.ctx.feedback('trap.whoosh');
   }
 
   protected onUpdate(dtMs: number): void {
     if (!this.moving) return;
-    const body = this.plat.body as Phaser.Physics.Arcade.Body;
+    if (this.pauseLeft > 0) {
+      this.pauseLeft -= dtMs;
+      return;
+    }
     const speed = this.def.params?.speed ?? 90;
     const target = this.forward ? this.dest : this.home;
-    const dx = target.x - this.gfx.x;
-    const dy = target.y - this.gfx.y;
+    const dx = target.x - this.pos.x;
+    const dy = target.y - this.pos.y;
     const dist = Math.hypot(dx, dy);
-    if (dist < 2) {
+    const wasOn = standingOn(this.ctx, { ...this.r, x: this.pos.x, y: this.pos.y });
+    let mx = 0;
+    let my = 0;
+    if (dist < 0.5) {
       if (this.def.params?.cycle) {
         this.forward = !this.forward;
+        this.pauseLeft = this.def.params?.hold ?? 250; // a beat at each end reads as intent
       } else {
         this.moving = false;
         this.complete();
-        return;
       }
-    } else {
-      const step = Math.min(dist, (speed * dtMs) / 1000);
-      this.gfx.x += (dx / dist) * step;
-      this.gfx.y += (dy / dist) * step;
+      return;
     }
-    body.reset(this.gfx.x + this.r.w / 2, this.gfx.y + this.r.h / 2);
-
-    // carry the player
-    const ddx = this.gfx.x - this.lastX;
-    const ddy = this.gfx.y - this.lastY;
-    this.lastX = this.gfx.x;
-    this.lastY = this.gfx.y;
-    const pr = playerRect(this.ctx.player);
-    const standing =
-      Math.abs(pr.y + pr.h - this.gfx.y) < 8 &&
-      pr.x + pr.w > this.gfx.x + 2 &&
-      pr.x < this.gfx.x + this.r.w - 2 &&
-      this.ctx.player.grounded;
-    if (standing) {
-      this.ctx.player.x += ddx;
-      if (ddy < 0) this.ctx.player.y += ddy;
+    const step = Math.min(dist, (speed * dtMs) / 1000);
+    mx = (dx / dist) * step;
+    my = (dy / dist) * step;
+    this.pos.x += mx;
+    this.pos.y += my;
+    this.gfx.setPosition(this.pos.x, this.pos.y);
+    (this.plat.body as Phaser.Physics.Arcade.Body).reset(this.pos.x + this.r.w / 2, this.pos.y + this.r.h / 2);
+    // Carry the rider by the exact platform delta (both axes) so descending
+    // platforms don't make Pip hop/land every frame.
+    if (wasOn) {
+      this.ctx.player.x += mx;
+      this.ctx.player.y += my;
+      (this.ctx.player.body as Phaser.Physics.Arcade.Body).updateFromGameObject();
     }
   }
 
   protected restore(): void {
     this.moving = false;
     this.forward = true;
+    this.pauseLeft = 0;
+    this.pos = { ...this.home };
     this.gfx.setPosition(this.home.x, this.home.y);
     (this.plat.body as Phaser.Physics.Arcade.Body).reset(this.home.x + this.r.w / 2, this.home.y + this.r.h / 2);
-    this.lastX = this.home.x;
-    this.lastY = this.home.y;
   }
 
   protected teardown(): void {
@@ -109,39 +107,45 @@ export class MoverTrap extends Trap {
 /** Static floor with a carry force. */
 export class ConveyorTrap extends Trap {
   private bodies: Phaser.Physics.Arcade.Sprite[] = [];
-  private gfx!: Phaser.GameObjects.Graphics;
+  private base!: Phaser.GameObjects.Graphics;
+  private arrows!: Phaser.GameObjects.Graphics;
   private r!: Rect;
   private phase = 0;
 
   protected arm(): void {
     this.r = cellsRect(this.cells);
-    this.gfx = this.ctx.scene.add.graphics().setDepth(3.5);
+    this.base = this.ctx.scene.add.graphics().setDepth(3.4);
+    drawTile(this.base, { x: 0, y: 0, w: this.r.w, h: this.r.h }, this.ctx.theme, 'none', this.ctx.edgesAt(this.r), this.r);
+    this.base.setPosition(this.r.x, this.r.y);
+    this.arrows = this.ctx.scene.add.graphics().setDepth(3.5).setPosition(this.r.x, this.r.y);
     this.bodies.push(spawnSolid(this.ctx, this.r));
-    this.state = 'done';
+    this.drawArrows();
+  }
+
+  private drawArrows(): void {
+    this.arrows.clear();
+    drawConveyorArrows(this.arrows, { x: 0, y: 0, w: this.r.w, h: 14 }, this.def.params?.dir ?? 1, this.phase, this.ctx.theme);
   }
 
   protected fire(): void {}
 
   protected onUpdate(dtMs: number): void {
-    this.phase += dtMs * 0.06;
-    this.gfx.clear();
-    drawTile(this.gfx, { x: 0, y: 0, w: this.r.w, h: this.r.h }, this.ctx.theme, 'none');
-    drawConveyorArrows(this.gfx, { x: 0, y: 0, w: this.r.w, h: 14 }, this.def.params?.dir ?? 1, this.phase, this.ctx.theme);
-    this.gfx.setPosition(this.r.x, this.r.y);
-    const pr = playerRect(this.ctx.player);
-    const standing =
-      Math.abs(pr.y + pr.h - this.r.y) < 8 &&
-      pr.x + pr.w > this.r.x + 2 &&
-      pr.x < this.r.x + this.r.w - 2 &&
-      this.ctx.player.grounded;
-    if (standing) {
-      const speed = this.def.params?.speed ?? 60;
-      this.ctx.player.x += (this.def.params?.dir ?? 1) * speed * (dtMs / 1000);
+    const dir = this.def.params?.dir ?? 1;
+    const speed = this.def.params?.speed ?? 60;
+    this.phase = (this.phase + dir * speed * (dtMs / 1000) + 26 * 1000) % 26;
+    this.drawArrows();
+    if (standingOn(this.ctx, this.r)) {
+      this.ctx.player.x += dir * speed * (dtMs / 1000);
     }
   }
 
-  protected restore(): void {}
+  protected restore(): void {
+    this.phase = 0;
+    this.drawArrows();
+  }
+
   protected teardown(): void {
-    this.gfx.destroy();
+    this.base.destroy();
+    this.arrows.destroy();
   }
 }

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Player } from '../entities/Player';
 import { ChapterTheme } from '../core/config';
 import { ParsedLevel, Rect } from '../levels/types';
-import { SFX } from '../audio/synth';
+import { FeedbackEvent } from '../feedback/FeedbackManager';
 
 export type DeathCause =
   | 'spikes' | 'crush' | 'fall' | 'void' | 'hazard' | 'squash';
@@ -19,10 +19,14 @@ export interface TrapContext {
   bus: Phaser.Events.EventEmitter;
   reduceMotion: boolean;
   kill(cause: DeathCause): void;
-  sfx(name: keyof typeof SFX): void;
-  haptic(kind: 'light' | 'medium' | 'heavy'): void;
-  /** Move the level goal (used by shygoal). */
-  moveGoal(x: number, y: number): void;
+  /** Route a gameplay moment through the FeedbackManager (sound/haptic/shake). */
+  feedback(ev: FeedbackEvent, opts?: { intensity?: number }): void;
+  /** Move the level goal (used by shygoal). `instant` skips the hop animation. */
+  moveGoal(x: number, y: number, instant?: boolean): void;
+  /** Current goal rect (moves when a shy door flees). */
+  goalRect(): Rect;
+  /** Exposed sides of a cell-aligned rect (for seamless disguised tiles). */
+  edgesAt(r: Rect): import('./impl/draw').Edges;
   /** Float a short sarcastic line at a world position. */
   quip(text: string, x: number, y: number): void;
   /** Dynamic (non-static) collidable group — movers, blocks, walls. */
