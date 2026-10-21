@@ -116,11 +116,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setGravityY(fallGravityExtra(body.velocity.y, g, this.scene.physics.world.gravity.y));
     body.setVelocityY(clampFall(body.velocity.y, g, this.cfg));
 
-    if (this.headBlocked && this.huggingWall() && !this.ceilingAbove()) {
-      // Seam on a wall face mis-read as a ceiling (Arcade resolves Y before
-      // X while we're pressed a few px into the wall): undo the false bonk.
-      body.setVelocityY(this.vyIn + this.scene.physics.world.gravity.y * dt);
-    } else if (rising && this.headBlocked) {
+    if (rising && this.headBlocked && (!this.huggingWall() || this.ceilingAbove())) {
       this.onEvent?.('bonk');
       this.cutArmed = false;
     }

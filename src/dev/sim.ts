@@ -12,6 +12,8 @@ import Phaser from 'phaser';
  *   R30   hold right 30 frames        RJ12  right + jump held 12 frames
  *   L8    left 8                      J6    jump only        _20  nothing
  *   W     wait (no input) until control returns after a death
+ *   RG    hold right until Pip is standing on something (≤ 90 frames);
+ *         LG / _G likewise. Lets routes say "hop, land, hop" robustly.
  * A jump *press* happens on the first frame of any J segment that follows a
  * segment without J (use `_1` between two jumps to re-press).
  */
@@ -30,7 +32,7 @@ export interface SimResult {
   events: string[];
 }
 
-type Seg = { dir: -1 | 0 | 1; jump: boolean; frames: number; wait?: boolean };
+type Seg = { dir: -1 | 0 | 1; jump: boolean; frames: number; wait?: boolean; untilGround?: boolean };
 
 export function parseProgram(src: string): Seg[] {
   const out: Seg[] = [];
@@ -40,11 +42,12 @@ export function parseProgram(src: string): Seg[] {
       out.push({ dir: 0, jump: false, frames: 0, wait: true });
       continue;
     }
-    const m = /^([LRJ_]+)(\d+)$/.exec(tok);
+    const m = /^([LRJ_]+)(\d+|G)$/.exec(tok);
     if (!m) throw new Error(`bad sim token '${tok}'`);
     const keys = m[1];
     const dir = keys.includes('L') && !keys.includes('R') ? -1 : keys.includes('R') && !keys.includes('L') ? 1 : 0;
-    out.push({ dir, jump: keys.includes('J'), frames: Number(m[2]) });
+    if (m[2] === 'G') out.push({ dir, jump: false, frames: 90, untilGround: true });
+    else out.push({ dir, jump: keys.includes('J'), frames: Number(m[2]) });
   }
   return out;
 }
@@ -92,7 +95,7 @@ export function installSim(game: Phaser.Game): void {
         if (frames % (opts.every ?? 4) === 0) trace.push([Math.round(scene.player.x), Math.round(scene.player.y)]);
         if (scene.deathsThisVisit !== lastDeaths) {
           lastDeaths = scene.deathsThisVisit;
-          causes.push(`${frames}:${Math.round(scene.player.x)},${Math.round(scene.player.y)}`);
+          causes.push(`${frames}:${scene.lastDeathCause}@${Math.round(scene.player.x)},${Math.round(scene.player.y)}`);
         }
         if (scene.state === 'complete' && completeFrame === null) completeFrame = frames;
         for (const t of scene.runtime.traps) {
@@ -112,6 +115,7 @@ export function installSim(game: Phaser.Game): void {
           continue;
         }
         for (let i = 0; i < s.frames; i++) {
+          if (s.untilGround && i > 1 && scene.player.grounded && scene.state === 'playing') break;
           tick(s.dir, s.jump);
           if (completeFrame !== null) break outer;
         }

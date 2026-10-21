@@ -1,10 +1,98 @@
 {
-  "1-1": { "program": "R45 RJ14 R40 RJ14 R20 RJ14 R20 RJ14 R80", "deaths": 0, "naive": "R300", "beat": "path sags into a harmless dip" },
-  "1-2": { "program": "R52 RJ24 R90", "deaths": 0, "naive": "R54 RJ6 R80", "beat": "cracked landing crumbles under a normal hop" },
-  "1-3": { "program": "R40 RJ24 R100", "deaths": 0, "naive": "R200", "beat": "low road grows teeth" },
-  "1-4": { "program": "R140 RJ20 R30 L69 LJ24 _8 LJ24 L6 _10 R80", "deaths": 0, "naive": "R140 RJ20 R80", "beat": "the door flees twice" },
-  "1-5": { "program": "R44 RJ24 R100", "deaths": 0, "naive": "R200", "beat": "bridge middle is painted on" },
-  "1-6": { "program": "R92 _50 R20 RJ16 R18 RJ20 R40", "deaths": 0, "naive": "R200", "beat": "second block lands where you get stuck" },
-  "1-7": { "program": "R40 RJ20 R260", "deaths": 0, "naive": "R40 RJ20 R30 RJ20 R10", "beat": "tall wall gives up if you wait" },
-  "1-8": { "program": "R24 RJ24 R20 RJ20 R10 RJ24 R60", "deaths": 0, "naive": "R300", "beat": "everything at once" }
+ "1-1": {
+  "program": "R45 RJ14 R40 RJ14 R20 RJ14 R20 RJ14 R80",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "path sags into a harmless dip"
+ },
+ "1-2": {
+  "program": "R52 RJ24 R90",
+  "deaths": 0,
+  "naive": "R54 RJ6 R80",
+  "beat": "cracked landing crumbles under a normal hop"
+ },
+ "1-3": {
+  "program": "R40 RJ24 R100",
+  "deaths": 0,
+  "naive": "R200",
+  "beat": "low road grows teeth"
+ },
+ "1-4": {
+  "program": "R140 RJ20 R30 L69 LJ24 _8 LJ24 L6 _10 R80",
+  "deaths": 0,
+  "naive": "R140 RJ20 R80",
+  "beat": "the door flees twice"
+ },
+ "1-5": {
+  "program": "R44 RJ24 R100",
+  "deaths": 0,
+  "naive": "R200",
+  "beat": "bridge middle is painted on"
+ },
+ "1-6": {
+  "program": "R92 _50 R20 RJ16 R18 RJ20 R40",
+  "deaths": 0,
+  "naive": "R200",
+  "beat": "second block lands where you get stuck"
+ },
+ "1-7": {
+  "program": "R40 RJ20 R260",
+  "deaths": 0,
+  "naive": "R40 RJ20 R30 RJ20 R10",
+  "beat": "tall wall gives up if you wait"
+ },
+ "1-8": {
+  "program": "R24 RJ24 R20 RJ20 R10 RJ24 R60",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "everything at once"
+ },
+ "2-1": {
+  "program": "R30 _160 RJ22 R60",
+  "deaths": 0,
+  "naive": "R200",
+  "beat": "holding right walks you off the cart"
+ },
+ "2-2": {
+  "program": "R112 _12 RJ24 R6 _20",
+  "deaths": 0,
+  "naive": "R200",
+  "beat": "the helpful belt flings you into teeth"
+ },
+ "2-3": {
+  "program": "R14 RJ8 RG R4 RJ8 RG R4 RJ8 RG R4 RJ8 RG R4 RJ10 R30",
+  "deaths": 0,
+  "naive": "R14 RJ8 RG _90",
+  "beat": "steps blink out under you"
+ },
+ "2-4": {
+  "program": "R40 L20 _30 R60 _20 R60",
+  "deaths": 0,
+  "naive": "R200",
+  "beat": "the waiting piston"
+ },
+ "2-5": {
+  "program": "R100 L30 _80 R30 RJ14 R60",
+  "deaths": 0,
+  "naive": "R200",
+  "beat": "the button drops a crate on you"
+ },
+ "2-6": {
+  "program": "R18 _22 R160",
+  "deaths": 0,
+  "naive": "R200",
+  "beat": "the spring flings you into a spiked ceiling"
+ },
+ "2-7": {
+  "program": "R17 RJ12 R2 _G _10 R28 RJ12 _G _40 R26 RJ14 _G _0 R18 RJ12 R60",
+  "deaths": 0,
+  "naive": "R17 RJ12 R40",
+  "beat": "heartbeat spikes"
+ },
+ "2-8": {
+  "program": "R26 L12 R30 _80 RJ16 _G R2 RJ8 _G R12 RJ8 _G R4 RJ8 R60",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "assembly line"
+ }
 }

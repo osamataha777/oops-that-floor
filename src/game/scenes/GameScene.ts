@@ -272,8 +272,12 @@ export class GameScene extends Phaser.Scene {
 
   // ---- death & instant restart -------------------------------------------------
 
+  /** Most recent death cause (diagnostics, replays). */
+  lastDeathCause: DeathCause | null = null;
+
   private kill(cause: DeathCause): void {
     if (!this.go('dying')) return;
+    this.lastDeathCause = cause;
     this.deathsThisVisit += 1;
     recordAttempt(services.save, this.def.id);
     const won = evaluateAchievements(services.save, { kind: 'death', levelId: this.def.id });

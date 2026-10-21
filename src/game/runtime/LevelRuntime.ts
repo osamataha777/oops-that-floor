@@ -103,6 +103,7 @@ export class LevelRuntime {
       this.traps.push(trap);
       trap.start();
     }
+    this.disableInternalFaces(def);
 
     // Levels are one screen wide: invisible side walls, open top and bottom
     // (falling out is a death; flipped gravity can fall "up").
@@ -186,6 +187,42 @@ export class LevelRuntime {
     for (const r of p.solids) this.addSolid(r);
     for (const r of p.platforms) this.addPlatform(r);
     // '~' ghosts: identical look, zero body — the classic betrayal
+  }
+
+  /**
+   * "Internal edges": a static face fully covered by permanent ground can
+   * never be touched legitimately. Leaving it collidable lets Arcade (which
+   * resolves Y before X) mistake a seam on a wall face for a ceiling while
+   * Pip is pressed against the wall — he couldn't jump up stepped ledges.
+   * Only '#' counts as cover: collapsing or ghost cells may vanish.
+   */
+  private disableInternalFaces(def: LevelDef): void {
+    const solid = (c: number, r: number) => {
+      if (r >= GRID_H) return true; // below the world
+      if (r < 0) return false;
+      if (c < 0 || c >= this.cols) return true; // side world bounds
+      return def.map[r][c] === '#';
+    };
+    for (const child of this.solids.getChildren()) {
+      const b = (child as Phaser.Physics.Arcade.Sprite).body as Phaser.Physics.Arcade.StaticBody;
+      const c0 = Math.round(b.x / TILE);
+      const r0 = Math.round(b.y / TILE);
+      const c1 = c0 + Math.max(1, Math.round(b.width / TILE)) - 1;
+      const r1 = r0 + Math.max(1, Math.round(b.height / TILE)) - 1;
+      let up = true, down = true, left = true, right = true;
+      for (let c = c0; c <= c1; c++) {
+        if (!solid(c, r0 - 1)) up = false;
+        if (!solid(c, r1 + 1)) down = false;
+      }
+      for (let r = r0; r <= r1; r++) {
+        if (!solid(c0 - 1, r)) left = false;
+        if (!solid(c1 + 1, r)) right = false;
+      }
+      b.checkCollision.up = !up;
+      b.checkCollision.down = !down;
+      b.checkCollision.left = !left;
+      b.checkCollision.right = !right;
+    }
   }
 
   private addSolid(r: Rect): Phaser.Physics.Arcade.Sprite {

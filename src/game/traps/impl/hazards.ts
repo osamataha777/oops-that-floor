@@ -382,7 +382,9 @@ export class CrusherTrap extends Trap {
 
   protected arm(): void {
     this.r = cellsRect(this.cells);
-    this.floorY = this.toCells.length ? cellsRect(this.toCells).y : this.r.y + TILE * 6;
+    // `to` marks the cells the crusher slams through; it stops flush with
+    // their bottom edge (the floor), never hovering above it.
+    this.floorY = this.toCells.length ? (() => { const t = cellsRect(this.toCells); return t.y + t.h; })() : this.r.y + TILE * 6;
     this.gfx = this.ctx.scene.add.graphics().setDepth(4);
     drawCrusher(this.gfx, this.r.w, this.r.h, this.r.y, this.ctx.theme);
     this.y = this.r.y;
