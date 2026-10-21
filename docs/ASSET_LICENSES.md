@@ -7,6 +7,7 @@ Every visual and audio asset in this game is **generated procedurally in code at
 - **Character & tiles:** drawn at boot in `src/game/scenes/BootScene.ts` via Phaser `Graphics.generateTexture` — original "Oopsie" character, tile, spike, door, and UI textures.
 - **Audio:** synthesized at runtime in `src/game/audio/synth.ts` via WebAudio oscillators/noise — no samples.
 - **Share cards:** rendered locally on a canvas in `src/services/shareCard.ts`.
+- **App icon:** `icon-1024.png` drawn programmatically (canvas) with the game's own palette/character — original art, all densities generated via `sips`.
 - **Fonts:** system font stack only (`system-ui, -apple-system, Segoe UI, Roboto`); no embedded fonts.
 - **Levels:** all 40 ASCII maps are hand-authored original designs in `src/game/levels/ch1–ch5.ts`.
 

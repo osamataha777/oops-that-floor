@@ -36,7 +36,8 @@ Status of every requirement, verified against this repo. ✅ = verified by a bui
 - [ ] ⛔ Google Play + Apple Developer accounts
 - [ ] ⛔ Android release keystore → `keystore.properties` + `./gradlew bundleRelease`
 - [ ] ⛔ iOS distribution certificate/provisioning → Xcode Archive → App Store Connect
-- [ ] ⛔ Store listing assets: icon set (1024), screenshots, feature graphic, description, privacy label
+- [x] App icon set — original procedurally-drawn `icon-1024.png` deployed to Android mipmap densities (incl. adaptive foreground) and iOS `AppIcon`
+- [ ] ⛔ Store listing assets: screenshots, feature graphic, description, privacy label
 - [ ] ⛔ Formal trademark check on "Oops! That Floor!" (alternatives ready)
 - [ ] ⛔ App-store age rating / content questionnaires
 - [ ] ⛔ Optional: `apple-app-site-association` + Android App Links if challenge deep links ship
