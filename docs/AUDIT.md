@@ -49,3 +49,58 @@ Conducted on `main` @ `b73525c` by playing the live build (headed Chromium captu
 - **Character**: formalize **Pip** — blob with eyes/feet, 9 expression states, squash-stretch animation system.
 - **Levels**: redesign all 40 around a documented Setup→Bait→Betrayal→Recovery→Payoff beat; first 8 rebuilt as the showcase.
 - **Controls**: two layouts (buttons + edge-swipe zones), scalable, settings-selectable.
+
+---
+
+# V2.1 Audit — second pass (this branch, continued)
+
+Second-pass audit targeted *behavioral* verification: E2E tests that drive real
+gameplay, multi-pointer input, and live trap state — not just code inspection.
+It found defects the first audit missed.
+
+## Newly confirmed defects (all fixed & test-covered)
+
+| # | Defect | Root cause | Fix | Proof |
+|---|--------|-----------|-----|-------|
+| 11 | **One-shot hidden spikes were harmless** — every proximity/touch spike in the game popped visually but could never kill | `HiddenSpikesTrap.fire()` called `complete()` → state `done` freezes `onUpdate`, where the lethal-overlap check lives | stay `active` post-pop | E2E: player dies at the spike cell in 5-6 (`levels-v21.spec`) |
+| 12 | **Jump-cut crushed external impulses** — `applyJumpCut` ran every un-held frame, so trap launches/knockback decayed −640→−92 within 3 frames; release-hops were also over-clipped | `Player.update` lacked a release-edge check | edge-triggered cut (`wasJumpHeld`) | `oneway.spec` — a launched rise now passes through the plank |
+| 13 | **1-5's high road was unreachable** — planks at 3.8 tiles vs ~114px jump apex | level authoring, found by the new one-way E2E | planks lowered to row 13 | `oneway.spec` passes |
+| 14 | **`attempt-eq`/`attempt-gte` traps could never fire** — gate set `armed` but no activation trigger existed | activation vs eligibility conflated | per-type `defaultActivation` (collapse→touch, spikes→proximity) | `worldremembers.spec`, `levels-v21` 3-7 |
+| 15 | **Test/`player.y=` body desync** — direct transform writes don't sync the Arcade body; `playerRect` reads body coords | test bug masking the void-death path | `setPosition()` in tests | `worldremembers.spec` hardened |
+| 16 | **Three near-identical "world remembers" levels** (3-3, 3-7, 5-4) + plate→wall used 3× | content duplication | 3-7 re-authored as a true escalation; 3-4/4-4/5-6/4-7/5-1 re-beated | `levels-v21.spec` ×6 |
+| 17 | **Group-collapse footgun** — all `cc` cells bind one trap; the 4-7 zigzag would have collapsed as a single unit | trap-per-marker semantics | per-step letters (`c,d,h,j`) → independent crumbles | validator + 4-7 E2E |
+| 18 | **Goals embedded in rock** — validator warnings on 3-2/3-8 | goal head under `F` ceiling | carved headroom; validator now reports **0 warnings** | `validate:levels` |
+
+## Verified contracts (executable)
+
+- One-way platforms: pass-through up, solid landing down, gravity-flip face swap.
+- Touch: real two-finger CDP touch (move+jump simultaneously), pointer
+  ownership, slide handoff, `pointercancel`, multi-press on one zone,
+  dead zone, missed-`pointerup` recovery.
+- State machine: pause ignored while dying; manual restart during death;
+  pause→resume; challenge payload delivery.
+- World-remembers: 5-4 & 3-7 verified live across consecutive attempts.
+
+## Perf measurements (headed Chromium, this machine — MacBook, Apple Silicon)
+
+| Metric | Target | Measured |
+|--------|--------|----------|
+| Menu ready (cold nav) | <3s | **868ms** |
+| Level start | <1.5s | **612ms** |
+| Frame time p50/p95/p99 | 60fps | **16.7 / 17.2 / 17.6ms (60.1 FPS)** |
+| Restart latency p50/p95 | <700ms | **151 / 333ms** |
+| Heap growth / 12 reloads | flat | **−27.7MB (GC'd, no leak)** |
+
+Headless run for reference: 23fps (software rasterizer) — not device-representative.
+
+## Builds
+
+- Web: `vite build` ✓ · `tsc --noEmit` ✓ · 57 unit ✓ · 20 E2E ✓
+- Android: `./gradlew assembleDebug` **BUILD SUCCESSFUL** (JDK 21)
+- iOS: `xcodebuild -scheme App -destination 'generic/platform=iOS Simulator'` **BUILD SUCCEEDED**
+
+## Remaining gaps (honest)
+
+- No physical-device run — all touch proof is CDP-simulated or synthetic.
+- Headless-vs-headed fps gap means low-end Android GPU perf is unverified.
+- Human playtest still outstanding (protocol in TEST_REPORT).

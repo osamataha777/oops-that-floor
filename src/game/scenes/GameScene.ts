@@ -171,6 +171,57 @@ export class GameScene extends Phaser.Scene {
     v.fillStyle(0x000000, 0.04);
     v.fillRect(0, 0, 20, GAME_HEIGHT);
     v.fillRect(GAME_WIDTH - 20, 0, 20, GAME_HEIGHT);
+
+    this.paintChapterMotif(theme);
+  }
+
+  /** Per-chapter ambient flavor — the worlds should differ at a glance. */
+  private paintChapterMotif(theme: ReturnType<typeof chapterTheme>): void {
+    const rm = services.settings.reducedMotion;
+    const ch = this.def.chapter;
+    if (ch === 1) {
+      // dandelion puffs drifting — innocent, pastoral
+      for (let i = 0; i < 8; i++) {
+        const p = this.add.circle(Math.random() * GAME_WIDTH, Math.random() * GAME_HEIGHT * 0.7, 2 + Math.random() * 2, 0xffffff, 0.35).setDepth(-4);
+        if (!rm) this.tweens.add({ targets: p, x: p.x + 60 + Math.random() * 60, y: p.y + 90 + Math.random() * 80, alpha: 0.1, duration: 9000 + Math.random() * 7000, repeat: -1, yoyo: true });
+      }
+    } else if (ch === 2) {
+      // wind streaks — the world is in a hurry
+      const g = this.add.graphics().setDepth(-5);
+      for (let i = 0; i < 10; i++) {
+        const y = 30 + (i * GAME_HEIGHT) / 11;
+        const w = 40 + (i % 3) * 40;
+        const streak = g.fillStyle(0xffffff, 0.12).fillRect(0, 0, w, 2).setX(-80).setY(y);
+        if (!rm) this.tweens.add({ targets: streak, x: GAME_WIDTH + 80, duration: 5000 + i * 900, repeat: -1, delay: i * 600, onRepeat: () => streak.setX(-80) });
+      }
+    } else if (ch === 3) {
+      // drifting chevrons — up is a suggestion here
+      const g = this.add.graphics().setDepth(-5);
+      for (let i = 0; i < 7; i++) {
+        const cx = 80 + i * 130;
+        const cy = 60 + (i % 3) * 140;
+        const up = i % 2 === 0;
+        const cg = this.add.graphics().setDepth(-5).setPosition(cx, cy).setAlpha(0.14);
+        cg.lineStyle(3, theme.bgFar, 1);
+        cg.beginPath();
+        cg.moveTo(-9, up ? 5 : -5); cg.lineTo(0, up ? -5 : 5); cg.lineTo(9, up ? 5 : -5);
+        cg.strokePath();
+        if (!rm) this.tweens.add({ targets: cg, y: cy + (up ? -14 : 14), duration: 2600 + i * 300, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      }
+    } else if (ch === 4) {
+      // confetti motes — chaos confetti, slowly tumbling
+      const cols = [theme.accent, theme.bgMid, 0xffffff];
+      for (let i = 0; i < 14; i++) {
+        const m = this.add.rectangle(Math.random() * GAME_WIDTH, Math.random() * GAME_HEIGHT, 7, 4, cols[i % 3], 0.3).setDepth(-4).setAngle(Math.random() * 90);
+        if (!rm) this.tweens.add({ targets: m, angle: m.angle + 360, y: m.y + 50 + Math.random() * 60, duration: 7000 + Math.random() * 6000, repeat: -1, yoyo: true, delay: Math.random() * 3000 });
+      }
+    } else if (ch === 5) {
+      // rising embers — the finale smoulders
+      for (let i = 0; i < 16; i++) {
+        const e = this.add.circle(Math.random() * GAME_WIDTH, GAME_HEIGHT * 0.5 + Math.random() * GAME_HEIGHT * 0.5, 1.4 + Math.random() * 1.6, 0xffb27a, 0.4).setDepth(-4);
+        if (!rm) this.tweens.add({ targets: e, y: e.y - 140 - Math.random() * 120, alpha: 0, duration: 5000 + Math.random() * 5000, repeat: -1, delay: Math.random() * 4000, onRepeat: () => { e.y = GAME_HEIGHT * 0.5 + Math.random() * GAME_HEIGHT * 0.5; e.setAlpha(0.4); } });
+      }
+    }
   }
 
   private buildHud(): void {
