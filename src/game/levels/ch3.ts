@@ -25,7 +25,8 @@ export const CH3: LevelDef[] = [
     quip: 'The arrows are not decorative.',
     tip: 'Step into the shimmer. Walk the ceiling.',
     map: [
-      F, F,
+      F,
+      '###########################.####',
       '...........................G....',
       E, E, E, E, E, E, E, E, E, E, E,
       '..............vvvv..............',
@@ -57,18 +58,23 @@ export const CH3: LevelDef[] = [
   },
   {
     id: '3-4', chapter: 3, index: 4, name: 'Button Mash',
-    quip: 'The wall is also a door. Confusing.',
+    quip: 'That was the doorbell, not the door.',
+    tip: 'The first button builds a wall. The second one opens it.',
     map: [
       E, E, E, E, E, E, E, E, E, E, E, E, E,
       E,
       '....................w...........',
-      '..@.....p...........w........G..',
+      '..@.....p...k...q...w........G..',
       F,
       F,
     ],
     traps: [
       { id: 'p1', type: 'plate', at: 'p', trigger: { event: 'touch' } },
-      { id: 'w1', type: 'wall', at: 'w', trigger: { event: 'press', ref: 'p1' }, params: { dir: -1, delay: 60 } },
+      { id: 'q1', type: 'plate', at: 'q', trigger: { event: 'touch' } },
+      // Betrayal: the obvious button slams a floor-brick up in your path.
+      { id: 'k1', type: 'wall', at: 'k', trigger: { event: 'press', ref: 'p1' }, params: { dir: 1, delay: 60 } },
+      // The second plate is the real door release.
+      { id: 'w1', type: 'wall', at: 'w', trigger: { event: 'press', ref: 'q1' }, params: { dir: -1, delay: 60 } },
     ],
   },
   {
@@ -109,19 +115,22 @@ export const CH3: LevelDef[] = [
   {
     id: '3-7', chapter: 3, index: 7, name: 'It Learns',
     quip: 'Second visit? The level studied your replay.',
-    tip: 'First attempt: spikes. Later: no bridge at all.',
+    tip: 'It adapts every visit. Attempt two: no bridge — and the other route is booby-trapped too.',
     map: [
       E, E, E, E, E, E, E, E, E, E, E, E,
-      '..................==............',
-      '...............==...............',
+      '.................==.............',
+      '..............==................',
       E,
       '..@..........................G..',
-      '#############ccc###s############',
+      '#############ccc##q#w###########',
       '#############...################',
     ],
     traps: [
+      // Attempt 1: bridge is honest — the sting waits at the far end ('q').
+      // Attempt 2+: bridge gone ('c') AND the high-road landing is armed ('w').
       { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'attempt-gte', n: 2 }, params: { tell: 'crack' } },
-      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'attempt-eq', n: 1 }, params: { tell: 'crack' } },
+      { id: 's1', type: 'spikes', at: 'q', trigger: { event: 'attempt-eq', n: 1 } },
+      { id: 's2', type: 'spikes', at: 'w', trigger: { event: 'attempt-gte', n: 2 } },
     ],
   },
   {
@@ -129,7 +138,8 @@ export const CH3: LevelDef[] = [
     quip: 'Press, sink, fly. In that order.',
     tip: 'Jump INTO the shimmer off the ledge.',
     map: [
-      F, F,
+      F,
+      '###########################.####',
       '...........................G....',
       E, E, E, E, E, E, E, E, E, E, E,
       '.............wvvv...............',

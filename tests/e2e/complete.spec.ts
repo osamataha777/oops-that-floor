@@ -64,16 +64,20 @@ test('death → respawn restores player control quickly', async ({ page }) => {
   await page.mouse.click(350, 280);
   await page.waitForTimeout(900);
 
-  // walk right into the spike and measure death → control
+  // Walk right into the spike and measure death→control on the GAME clock
+  // (scene.time.now) — wall-clock flakes under parallel-worker CPU stalls.
   await page.keyboard.down('ArrowRight');
   let died = 0;
   let controlBack = 0;
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
-    const s = await snap(page);
-    if (s.state === 'dying' && !died) died = Date.now();
-    if (died && s.state === 'playing' && s.x < 200) { controlBack = Date.now(); break; }
-    await page.waitForTimeout(20);
+    const s = await page.evaluate(() => {
+      const sc = (window as any).__otf.scene.getScene('Game') as any;
+      return { state: sc.state, x: sc.player.x, now: sc.time.now };
+    });
+    if (s.state === 'dying' && !died) died = s.now;
+    if (died && s.state === 'playing' && s.x < 200) { controlBack = s.now; break; }
+    await page.waitForTimeout(15);
   }
   await page.keyboard.up('ArrowRight');
   expect(died).toBeGreaterThan(0);

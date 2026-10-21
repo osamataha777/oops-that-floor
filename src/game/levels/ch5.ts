@@ -13,7 +13,7 @@ export const CH5: LevelDef[] = [
       E, E, E, E, E, E, E, E, E, E, E, E, E, E,
       E,
       '..@..........................G..',
-      '######aaa.bbb.ccc.ddd.##########',
+      '######aaa.bbb.ccc.ddd.#s########',
       '######..........................',
     ],
     traps: [
@@ -21,6 +21,8 @@ export const CH5: LevelDef[] = [
       { id: 'b1', type: 'collapse', at: 'b', trigger: { event: 'touch' }, params: { fuse: 200, delay: 220, tell: 'crack' } },
       { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { fuse: 200, delay: 220, tell: 'crack' } },
       { id: 'd1', type: 'collapse', at: 'd', trigger: { event: 'touch' }, params: { fuse: 200, delay: 220, tell: 'crack' } },
+      // The "you made it" tile isn't safe either — hop the last sting.
+      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'proximity', distance: 55 } },
     ],
   },
   {
@@ -105,17 +107,20 @@ export const CH5: LevelDef[] = [
   {
     id: '5-6', chapter: 5, index: 6, name: 'Door Simulator',
     quip: 'Four doors. One is honest. Eventually.',
-    tip: 'The real one runs back once. Corner it.',
+    tip: 'The painted doors are bait — the floor around them has opinions.',
     map: [
       E, E, E, E, E, E, E, E, E, E, E, E, E, E,
       E,
-      '..@............t....d...e....G..',
-      F,
+      '..@.........d....e....t....G....',
+      '###########s#s##s#s#############',
       F,
     ],
     traps: [
+      // Both painted doors are flanked by hidden floor-spikes — approaching
+      // either one is the trap. The only honest exit still runs once.
       { id: 'd1', type: 'fakegoal', at: 'd', trigger: { event: 'touch' } },
       { id: 'e1', type: 'fakegoal', at: 'e', trigger: { event: 'touch' } },
+      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'proximity', distance: 55 } },
       { id: 'g1', type: 'shygoal', at: 'G', to: 't', trigger: { event: 'proximity', distance: 85 }, params: { hops: 1 } },
     ],
   },

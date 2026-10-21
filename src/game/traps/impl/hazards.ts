@@ -37,7 +37,8 @@ export class HiddenSpikesTrap extends Trap {
 
   protected fire(): void {
     this.pop(true);
-    if (!this.periodic) this.complete();
+    // Stay 'active' — exposed spikes must remain lethal. Calling complete()
+    // here would freeze onUpdate and make them harmless decorations.
   }
 
   private pop(out: boolean): void {

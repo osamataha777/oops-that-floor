@@ -60,20 +60,22 @@ export const CH4: LevelDef[] = [
     ],
   },
   {
-    id: '4-4', chapter: 4, index: 4, name: 'Group Project',
-    tip: 'Step on the button to open the door, then ride the lift across.',
-    quip: 'The button, the belt-car, and the door.',
+    id: '4-4', chapter: 4, index: 4, name: 'The Helpful Wall',
+    tip: 'Press the button, then look behind you — the pit grew a bridge.',
+    quip: 'The level slammed a bridge into existence. For you.',
     map: [
       E, E, E, E, E, E, E, E, E, E, E, E, E, E,
-      '............mm..nn.w............',
-      '..@..p.............w........G...',
-      '##########........##############',
-      '##########........##############',
+      '....................w...........',
+      '..@..p...............w......G...',
+      '##########..kkkkk..#############',
+      '##########..........############',
     ],
     traps: [
       { id: 'p1', type: 'plate', at: 'p', trigger: { event: 'touch' } },
+      // The door sinks…
       { id: 'w1', type: 'wall', at: 'w', trigger: { event: 'press', ref: 'p1' }, params: { dir: -1 } },
-      { id: 'm1', type: 'mover', at: 'm', to: 'n', trigger: { event: 'always', delay: 500 }, params: { speed: 110, cycle: true } },
+      // …and the moment it finishes, a bridge erupts in the pit behind you.
+      { id: 'k1', type: 'wall', at: 'k', trigger: { event: 'trap-complete', ref: 'w1', delay: 60 }, params: { dir: 1 } },
     ],
   },
   {
@@ -115,17 +117,22 @@ export const CH4: LevelDef[] = [
   {
     id: '4-7', chapter: 4, index: 7, name: 'Trust Fall',
     quip: 'Only the ugly steps are real. Briefly.',
-    tip: 'Cracked = real for ~a second. Clean = never real.',
+    tip: 'Zigzag up. Two steps are painted on — the cracked ones hold, briefly.',
     map: [
-      E, E, E, E, E, E, E, E, E, E, E, E, E,
-      '.........ccc..gg..ccc..gg.......',
+      E, E, E, E, E, E, E, E, E, E, E, E,
+      '...........dd....hh.....gg......',
+      '........cc....gg....jj..........',
       E,
       '..@..........................G..',
-      '########.................#######',
-      '########.................#######',
+      '########................########',
+      '########................########',
     ],
     traps: [
-      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { fuse: 150, delay: 200, tell: 'crack' } },
+      // Each step is its own trap — it crumbles ~400ms after YOU touch it.
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { fuse: 120, delay: 280, tell: 'crack' } },
+      { id: 'd1', type: 'collapse', at: 'd', trigger: { event: 'touch' }, params: { fuse: 120, delay: 280, tell: 'crack' } },
+      { id: 'h1', type: 'collapse', at: 'h', trigger: { event: 'touch' }, params: { fuse: 120, delay: 280, tell: 'crack' } },
+      { id: 'j1', type: 'collapse', at: 'j', trigger: { event: 'touch' }, params: { fuse: 120, delay: 280, tell: 'crack' } },
       { id: 'g1', type: 'ghost', at: 'g', trigger: { event: 'always' } },
     ],
   },
