@@ -141,5 +141,53 @@
   "deaths": 0,
   "naive": "R400",
   "beat": "the door flees to the ceiling"
+ },
+ "4-1": {
+  "program": "R10 _10 R35 _0 R100",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "spinning arms sweep the stage"
+ },
+ "4-2": {
+  "program": "R104 RJ12 R5 L0 LJ10 LG L10",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "the real door hides beside a prop"
+ },
+ "4-3": {
+  "program": "R8 _42 R200",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "walk with the rolling wave"
+ },
+ "4-4": {
+  "program": "R150",
+  "deaths": 0,
+  "naive": "R22 _20 R200",
+  "beat": "the bridge changes its mind"
+ },
+ "4-5": {
+  "program": "R30 RJ16 R0 RJ16 R20 RJ16 R60",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "floor collapses behind you"
+ },
+ "4-6": {
+  "program": "_48 R200",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "spring trapeze past spinning arms"
+ },
+ "4-7": {
+  "program": "R4 RJ10 RG R0 RJ10 RG R0 RJ10 RG R2 RJ10 RG R0 RJ14 R60",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "clean steps are paint, cracked ones crumble"
+ },
+ "4-8": {
+  "program": "_60 R30 RJ10 R0 RG R65 L60",
+  "deaths": 0,
+  "naive": "R300",
+  "beat": "final exam"
  }
 }

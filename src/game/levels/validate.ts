@@ -14,9 +14,11 @@ const rectContainsPoint = (r: { x: number; y: number; w: number; h: number }, x:
 const rectsOverlap = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) =>
   a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
-/** Solid-ish surfaces the player can stand/spawn on. */
+/** Solid-ish surfaces the player can stand/spawn on (incl. trap floors). */
 function supportRects(parsed: ReturnType<typeof parseLevel>): { x: number; y: number; w: number; h: number }[] {
-  return [...parsed.solids, ...parsed.platforms];
+  const groundTraps = parsed.def.traps.filter((t) => ['collapse', 'timed', 'spikes', 'conveyor'].includes(t.type));
+  const trapCells = groundTraps.flatMap((t) => parsed.markers.get(t.at) ?? []);
+  return [...parsed.solids, ...parsed.platforms, ...trapCells];
 }
 
 function validateOne(def: LevelDef): LevelIssue[] {

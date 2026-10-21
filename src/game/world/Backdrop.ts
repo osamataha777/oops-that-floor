@@ -145,7 +145,7 @@ function paint(g: G, ch: number, t: ChapterTheme, w: number): void {
       }
       // stage curtains framing the screen edges
       for (const side of [0, 1]) {
-        const cw = Math.max(70, VIEW.ox + 60);
+        const cw = Math.max(16, VIEW.ox + 8);
         const x0 = side ? w - cw : 0;
         g.fillStyle(0x8f2f2a, 1).fillRect(x0, 0, cw, H);
         g.fillStyle(0x6e2220, 1);

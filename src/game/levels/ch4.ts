@@ -1,159 +1,205 @@
 import { LevelDef } from './types';
+import { rows, full } from './build';
 
-const E = '................................';
-const F = '################################';
-
-/** Chapter 4 — Chaos Academy. Everything you know, combined. */
+/**
+ * Chapter 4 — Chaos Academy.
+ * A theatre school where every lesson is a performance and every prop is
+ * in on the joke. Mechanics combine; timing and reading the stage matter.
+ */
 export const CH4: LevelDef[] = [
   {
-    id: '4-1', chapter: 4, index: 1, name: 'Combo Meal',
-    tip: 'The belt carries you onto cracking floor. Keep those feet moving.',
-    quip: 'A belt, a bridge, and some teeth.',
-    map: [
-      E, E, E, E, E, E, E, E, E, E, E, E, E, E,
-      E,
-      '..@..........................G..',
-      '######vvvv..cc#####s############',
-      '##########....##################',
-    ],
+    // Opening night: two spinning spiked arms sweep the stage floor.
+    // Read the rotation, pass while the arm is up. No tricks — yet.
+    id: '4-1', chapter: 4, index: 1, name: 'Opening Night',
+    quip: 'Break a leg. Not literally.',
+    tip: 'Only the arm tips reach the floor. Go right after a tip passes.',
+    map: rows(
+      '...............o',
+      '........................q',
+      '',
+      '',
+      '..@..........................G',
+      full(),
+      full(),
+      full(),
+    ),
     traps: [
-      { id: 'v1', type: 'conveyor', at: 'v', trigger: { event: 'always' }, params: { dir: 1, speed: 70 } },
-      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { delay: 200, tell: 'crack' } },
-      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'proximity', distance: 60 }, params: { tell: 'crack' } },
+      { id: 'o1', type: 'spinner', at: 'o', trigger: { event: 'always' }, params: { len: 4, speed: 105 } },
+      { id: 'q1', type: 'spinner', at: 'q', trigger: { event: 'always' }, params: { len: 3, speed: 140, dir: -1, phase: 180 } },
     ],
   },
   {
-    id: '4-2', chapter: 4, index: 2, name: 'Bounce House',
-    quip: 'Shy steps and one very angry fan.',
-    tip: 'The arm only reaches so far. Time the middle hop.',
-    map: [
-      E, E, E, E, E, E, E, E, E, E, E, E,
-      '...............o................',
-      E,
-      '.........t...t...t..............',
-      '..@.........................G...',
-      '########................########',
-      '########................########',
-    ],
+    // The audition: three identical doors on three stages. Two are props.
+    // The real one gets stage fright and bolts — right next to a prop.
+    id: '4-2', chapter: 4, index: 2, name: 'The Audition',
+    quip: 'Three doors audition. One gets the part.',
+    tip: 'The real door hides beside a fake one. Approach from the right.',
+    map: rows(
+      '.................e..t',
+      '................######',
+      '..........d................G',
+      '........#####............#######',
+      '',
+      '..@',
+      full(),
+      full(),
+      full(),
+    ),
     traps: [
-      { id: 't1', type: 'timed', at: 't', trigger: { event: 'touch' }, params: { fuse: 800, off: 1300, cycle: true } },
-      { id: 'o1', type: 'spinner', at: 'o', trigger: { event: 'always', delay: 500 }, params: { len: 2, speed: 95 } },
+      { id: 'd1', type: 'fakegoal', at: 'd', trigger: { event: 'touch' } },
+      { id: 'e1', type: 'fakegoal', at: 'e', trigger: { event: 'touch' } },
+      { id: 'g1', type: 'shygoal', at: 'G', to: 't', trigger: { event: 'proximity', distance: 90 }, params: { hops: 1 } },
     ],
   },
   {
-    id: '4-3', chapter: 4, index: 3, name: 'Red Light',
-    tip: 'The spikes pulse on a rhythm. Move on the off-beat.',
+    // The orchestra pit: a low corridor (no room to jump) over three spike
+    // beds that sink in a rolling wave at walking pace, then a piston on the
+    // downbeat. Wait for the first bed, then walk with the music.
+    id: '4-3', chapter: 4, index: 3, name: 'Conductor',
     quip: 'Rhythm game. With consequences.',
-    map: [
-      E, E, E, E,
-      '....................kk..........',
-      E, E, E, E, E, E, E, E,
-      E,
-      E,
-      '..@...............zzzz......G...',
-      '##########ssss##################',
-      F,
-    ],
+    tip: 'Each bed sinks just after the one before it. Follow the wave.',
+    map: rows(
+      '..........................####',
+      '..........................####',
+      '...........................kk',
+      '...........................kk',
+      '....######################',
+      '....######################',
+      '',
+      '..@........................zz.G.',
+      '######sssss##uuuuu##wwwww#######',
+      full(),
+      full(),
+    ),
     traps: [
-      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'always', delay: 400 }, params: { period: 1500, hold: 650 } },
-      { id: 'k1', type: 'crusher', at: 'k', to: 'z', trigger: { event: 'always', delay: 700 }, params: { speed: 950, cycle: true } },
+      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'always', delay: 300 }, params: { period: 1600, hold: 700, phase: 0 } },
+      { id: 's2', type: 'spikes', at: 'u', trigger: { event: 'always', delay: 300 }, params: { period: 1600, hold: 700, phase: 980 } },
+      { id: 's3', type: 'spikes', at: 'w', trigger: { event: 'always', delay: 300 }, params: { period: 1600, hold: 700, phase: 360 } },
+      { id: 'k1', type: 'crusher', at: 'k', to: 'z', trigger: { event: 'always', delay: 500 }, params: { speed: 900, cycle: true } },
     ],
   },
   {
-    id: '4-4', chapter: 4, index: 4, name: 'The Helpful Wall',
-    tip: 'Press the button, then look behind you — the pit grew a bridge.',
-    quip: 'The level slammed a bridge into existence. For you.',
-    map: [
-      E, E, E, E, E, E, E, E, E, E, E, E, E, E,
-      '....................w...........',
-      '..@..p...............w......G...',
-      '##########..kkkkk..#############',
-      '##########..........############',
-    ],
+    // Setup: an impossible pit and a big friendly button. Press it: a
+    // bridge rises! Surprise: the bridge has a short attention span.
+    // Discovery: press and GO. Payoff: you sprint a vanishing stage.
+    id: '4-4', chapter: 4, index: 4, name: 'The Helpful Bridge',
+    quip: 'The bridge is very supportive. For a while.',
+    tip: 'Press and sprint — the bridge sinks again after two seconds.',
+    map: rows(
+      '..@...p.......................G.',
+      '########bbbbbbbbbbbbbbbb########',
+      '########................########',
+      '########................########',
+    ),
     traps: [
       { id: 'p1', type: 'plate', at: 'p', trigger: { event: 'touch' } },
-      // The door sinks…
-      { id: 'w1', type: 'wall', at: 'w', trigger: { event: 'press', ref: 'p1' }, params: { dir: -1 } },
-      // …and the moment it finishes, a bridge erupts in the pit behind you.
-      { id: 'k1', type: 'wall', at: 'k', trigger: { event: 'trap-complete', ref: 'w1', delay: 60 }, params: { dir: 1 } },
+      { id: 'b1', type: 'wall', at: 'b', trigger: { event: 'press', ref: 'p1', delay: 80 }, params: { retract: 1450 } },
     ],
   },
   {
-    id: '4-5', chapter: 4, index: 5, name: 'Overcooked',
-    quip: 'Every appliance is on.',
-    map: [
-      E, E, E, E,
-      '.........................f......',
-      E, E, E, E, E, E, E, E,
-      E,
-      '..............t...t.............',
-      '..@....................zzzz.G...',
-      '########vvvv............########',
-      '############............########',
-    ],
+    // The academy's fire drill: the floor collapses section by section
+    // from behind. Hop the riser, clear the gap, climb out. Don't stop.
+    id: '4-5', chapter: 4, index: 5, name: 'Fire Drill',
+    quip: 'This is not a drill. It is a floor.',
+    tip: 'Never stop: hop the riser, clear the gap, jump for the ledge.',
+    map: rows(
+      '..............................G.',
+      '........................########',
+      '..............####......########',
+      '..@...........####......########',
+      'aaaaaabbbbbbcccccc..dddd########',
+      '........................########',
+      '........................########',
+    ),
     traps: [
-      { id: 'v1', type: 'conveyor', at: 'v', trigger: { event: 'always' }, params: { dir: 1, speed: 70 } },
-      { id: 't1', type: 'timed', at: 't', trigger: { event: 'touch' }, params: { fuse: 750, off: 1250, cycle: true } },
-      { id: 'f1', type: 'fallblock', at: 'f', trigger: { event: 'enter-area', area: 'z', delay: 140 } },
+      { id: 'a1', type: 'collapse', at: 'a', trigger: { event: 'timer', after: 900 }, params: { delay: 300, tell: 'crack' } },
+      { id: 'b1', type: 'collapse', at: 'b', trigger: { event: 'timer', after: 1500 }, params: { delay: 300, tell: 'crack' } },
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'timer', after: 2100 }, params: { delay: 300, tell: 'crack' } },
+      { id: 'd1', type: 'collapse', at: 'd', trigger: { event: 'timer', after: 2800 }, params: { delay: 300, tell: 'crack' } },
     ],
   },
   {
-    id: '4-6', chapter: 4, index: 6, name: 'The Audition',
-    tip: 'One door lies, one door runs, one is real. Audition them all.',
-    quip: 'Two doors audition. One gets the part.',
-    map: [
-      E, E, E, E, E, E, E, E, E, E, E, E, E, E,
-      E,
-      '..@...................d..t...G..',
-      '####################s###########',
-      F,
-    ],
+    // The circus wing: springs fling you over two pits, and a spinning arm
+    // guards each arc. Time the walk-in, enjoy the flight.
+    id: '4-6', chapter: 4, index: 6, name: 'Trapeze',
+    quip: 'Look ma, no floor.',
+    tip: 'Wait for the arm to swing away, then walk onto the spring.',
+    map: rows(
+      '........o.............u',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '.@..q...........r............G',
+      '#####........#####.........#####',
+      '#####........#####.........#####',
+      '#####........#####.........#####',
+    ),
     traps: [
-      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'proximity', distance: 60 }, params: { tell: 'crack' } },
-      { id: 'd1', type: 'fakegoal', at: 'd', trigger: { event: 'touch' } },
-      { id: 'g1', type: 'shygoal', at: 'G', to: 't', trigger: { event: 'proximity', distance: 85 }, params: { hops: 1 } },
+      { id: 'q1', type: 'spring', at: 'q', trigger: { event: 'always' }, params: { speed: 960 } },
+      { id: 'r1', type: 'spring', at: 'r', trigger: { event: 'always' }, params: { speed: 960 } },
+      { id: 'o1', type: 'spinner', at: 'o', trigger: { event: 'always' }, params: { len: 3, speed: 100 } },
+      { id: 'u1', type: 'spinner', at: 'u', trigger: { event: 'always' }, params: { len: 3, speed: 100, dir: -1, phase: 90 } },
     ],
   },
   {
+    // Trust fall: a cracked staircase that crumbles a beat after each step,
+    // with clean, inviting steps placed exactly where a long jump would land.
+    // The clean ones are painted on. The ugly ones hold — briefly.
     id: '4-7', chapter: 4, index: 7, name: 'Trust Fall',
     quip: 'Only the ugly steps are real. Briefly.',
-    tip: 'Zigzag up. Two steps are painted on — the cracked ones hold, briefly.',
-    map: [
-      E, E, E, E, E, E, E, E, E, E, E, E,
-      '...........dd....hh.....gg......',
-      '........cc....gg....jj..........',
-      E,
-      '..@..........................G..',
-      '########................########',
-      '########................########',
-    ],
+    tip: 'Hop step to step on the cracked ones. The clean steps are paint.',
+    map: rows(
+      '..........................G',
+      '..................dd..##########',
+      '......................##########',
+      '..............cc..gg..##########',
+      '......................##########',
+      '..........bb..gg......##########',
+      '......................##########',
+      '......aa..gg..........##########',
+      '..@...................##########',
+      '#####.................##########',
+      '#####.................##########',
+      '#####.................##########',
+    ),
     traps: [
-      // Each step is its own trap — it crumbles ~400ms after YOU touch it.
-      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { fuse: 120, delay: 280, tell: 'crack' } },
-      { id: 'd1', type: 'collapse', at: 'd', trigger: { event: 'touch' }, params: { fuse: 120, delay: 280, tell: 'crack' } },
-      { id: 'h1', type: 'collapse', at: 'h', trigger: { event: 'touch' }, params: { fuse: 120, delay: 280, tell: 'crack' } },
-      { id: 'j1', type: 'collapse', at: 'j', trigger: { event: 'touch' }, params: { fuse: 120, delay: 280, tell: 'crack' } },
+      { id: 'a1', type: 'collapse', at: 'a', trigger: { event: 'touch' }, params: { fuse: 200, delay: 320, tell: 'crack' } },
+      { id: 'b1', type: 'collapse', at: 'b', trigger: { event: 'touch' }, params: { fuse: 200, delay: 320, tell: 'crack' } },
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { fuse: 200, delay: 320, tell: 'crack' } },
+      { id: 'd1', type: 'collapse', at: 'd', trigger: { event: 'touch' }, params: { fuse: 200, delay: 320, tell: 'crack' } },
       { id: 'g1', type: 'ghost', at: 'g', trigger: { event: 'always' } },
     ],
   },
   {
+    // Final exam: a belt feeds you under a spinning arm, a cracked bridge
+    // tests your feet, a spring tests your nerve, and the door tests your
+    // patience one last time.
     id: '4-8', chapter: 4, index: 8, name: 'Final Exam I',
     quip: 'Chapter four sends its regards.',
-    map: [
-      E, E, E, E, E, E, E, E, E, E, E, E,
-      '..............o.................',
-      '.............t.t.t..............',
-      E,
-      '..@......................e.e..G.',
-      '######vv..cc.......###########..',
-      '########..........##############',
-    ],
+    tip: 'Belt, arm, bridge, spring. The door gives up after one hop.',
+    map: rows(
+      '.......................t.....G',
+      '......................##########',
+      '......................##########',
+      '.......o..............##########',
+      '......................##########',
+      '......................##########',
+      '..@..............q....##########',
+      '###vvvvvvvccccc####...##########',
+      '##########.....####...##########',
+      '##########.....####...##########',
+    ),
     traps: [
-      { id: 'v1', type: 'conveyor', at: 'v', trigger: { event: 'always' }, params: { dir: 1, speed: 75 } },
-      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { delay: 200, tell: 'crack' } },
-      { id: 'o1', type: 'spinner', at: 'o', trigger: { event: 'always', delay: 400 }, params: { len: 2, speed: 100 } },
-      { id: 't1', type: 'timed', at: 't', trigger: { event: 'touch' }, params: { fuse: 750, off: 1200, cycle: true } },
-      { id: 'g1', type: 'shygoal', at: 'G', to: 'e', trigger: { event: 'proximity', distance: 80 }, params: { hops: 2 } },
+      { id: 'v1', type: 'conveyor', at: 'v', trigger: { event: 'always' }, params: { dir: 1, speed: 80 } },
+      { id: 'o1', type: 'spinner', at: 'o', trigger: { event: 'always' }, params: { len: 3, speed: 110 } },
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { delay: 220, tell: 'crack' } },
+      { id: 'q1', type: 'spring', at: 'q', trigger: { event: 'always' }, params: { speed: 980 } },
+      { id: 'g1', type: 'shygoal', at: 'G', to: 't', trigger: { event: 'proximity', distance: 90 }, params: { hops: 1 } },
     ],
   },
 ];
