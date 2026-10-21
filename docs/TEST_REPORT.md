@@ -14,6 +14,7 @@ Environment: macOS (Apple Silicon), Node 26, Chrome via Playwright, Android SDK 
 | Browser E2E | `npm run test:e2e` | ✅ 5/5 — boot→play, level select, pause/resume, **scripted bot completes 1-1 & unlocks 1-2**, death→respawn latency |
 | Android debug | `./gradlew assembleDebug` | ✅ `app-debug.apk` (4.5 MB) |
 | iOS build (unsigned) | `xcodebuild CODE_SIGNING_ALLOWED=NO` | ✅ `App.app` for arm64 iOS 15+ |
+| iOS Simulator run | `xcodebuild … iphonesimulator` + `simctl install/launch` | ✅ game boots to menu in landscape on iPhone 17 Pro sim (screenshot-verified) |
 
 ## Coverage map
 

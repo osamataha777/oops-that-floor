@@ -24,6 +24,7 @@ Status of every requirement, verified against this repo. ✅ = verified by a bui
 
 - [ ] ⚠️ Playtest all 40 levels end-to-end on a phone — solvability BFS proves a path exists; fairness/timing still needs humans
 - [ ] ⚠️ Touch controls: multitouch feel, button placement/scaling on small + large screens
+- [x] iOS native shell: app installs + launches on iPhone 17 Pro simulator, landscape menu verified
 - [ ] ⚠️ Safe-area padding on notched devices (adapter implemented, untested on hardware)
 - [ ] ⚠️ Haptics intensity/appropriateness on Android + iOS
 - [ ] ⚠️ 60 FPS on a mid-range device (desktop Chrome measured 60; mobile TBD)
