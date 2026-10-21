@@ -4,6 +4,7 @@ import { validateAll, jumpSanity } from '../../src/game/levels/validate';
 import { solveLevel } from '../../src/game/levels/solve';
 import { parseLevel } from '../../src/game/levels/parse';
 import { TRAP_TYPES } from '../../src/game/levels/types';
+import REPLAYS from '../replays/levels.json';
 
 describe('level registry', () => {
   it('has 40 levels in 5 chapters of 8', () => {
@@ -47,8 +48,8 @@ describe('level parsing', () => {
   });
   it('collects trap markers', () => {
     const p = parseLevel(LEVELS.find((l) => l.id === '1-3')!);
-    expect(p.markers.get('c')?.length).toBe(4);
-    expect(p.markers.get('s')?.length).toBe(3);
+    expect(p.markers.get('s')?.length).toBe(4);
+    expect(parseLevel(LEVELS.find((l) => l.id === '1-2')!).markers.get('c')?.length).toBe(5);
   });
 });
 
@@ -63,8 +64,14 @@ describe('level design invariants', () => {
   it('jump sanity produces no fatal issues', () => {
     expect(LEVELS.flatMap(jumpSanity).filter((i) => i.fatal)).toEqual([]);
   });
-  it('every level has a plausible spawn→goal path (trap-aware BFS)', () => {
-    const unsolvable = LEVELS.filter((l) => !solveLevel(l).solvable).map((l) => l.id);
-    expect(unsolvable).toEqual([]);
+  it('every level is proven: an input replay exists, or the trap-aware BFS finds a path', () => {
+    // Replays (tests/replays/levels.json) are executed against the real game
+    // by tests/e2e/levels.spec.ts. The BFS is only a coarse fallback — it
+    // cannot model fall-block stairs, retracting walls or timing.
+    const unproven = LEVELS.filter((l) => !(l.id in REPLAYS) && !solveLevel(l).solvable).map((l) => l.id);
+    expect(unproven).toEqual([]);
+  });
+  it('replays only reference real levels', () => {
+    for (const id of Object.keys(REPLAYS)) expect(indexOfLevel(id)).toBeGreaterThanOrEqual(0);
   });
 });

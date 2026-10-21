@@ -171,6 +171,7 @@ export class FallBlockTrap extends Trap {
   private landed = false;
   private home!: { x: number; y: number };
   private fallT = 0;
+  private prevTop = 0;
 
   protected arm(): void {
     const r = cellsRect(this.cells);
@@ -205,16 +206,23 @@ export class FallBlockTrap extends Trap {
     const body = this.block.body as Phaser.Physics.Arcade.Body;
     const shake = this.state === 'triggered' ? shudder(this.elapsed, 1.6) : 0;
     this.gfx.setPosition(this.block.x - this.block.displayWidth / 2 + shake, this.block.y - this.block.displayHeight / 2);
-    if (this.state !== 'active') return;
+    if (this.state !== 'active') {
+      this.prevTop = this.block.y - this.block.displayHeight / 2;
+      return;
+    }
     this.fallT += dtMs;
-    if (!this.landed && body.velocity.y > 60) {
+    const top = this.block.y - this.block.displayHeight / 2;
+    if (!this.landed && top > this.prevTop + 0.5) {
+      // Swept test: everything the block passed through this frame. Near the
+      // ground it moves ~20 px/frame — more than enough to skip over Pip.
       const pr = playerRect(this.ctx.player);
-      const hitbox = { x: this.block.x - this.block.displayWidth / 2 + 2, y: this.block.y - this.block.displayHeight / 2 + 2, w: this.block.displayWidth - 4, h: this.block.displayHeight - 2 };
-      if (overlap(hitbox, pr)) {
+      const sweep = { x: this.block.x - this.block.displayWidth / 2 + 2, y: this.prevTop + 2, w: this.block.displayWidth - 4, h: top - this.prevTop + this.block.displayHeight - 2 };
+      if (overlap(sweep, pr)) {
         this.ctx.kill('crush');
         return;
       }
     }
+    this.prevTop = top;
     if (!this.landed && this.fallT > 250 && (body.blocked.down || body.touching.down || Math.abs(body.velocity.y) < 8)) {
       this.landed = true;
       body.setVelocity(0, 0);
@@ -242,6 +250,7 @@ export class FallBlockTrap extends Trap {
     this.block.setData('passThrough', false);
     this.landed = false;
     this.fallT = 0;
+    this.prevTop = this.home.y;
     this.gfx.setPosition(this.home.x, this.home.y);
   }
 

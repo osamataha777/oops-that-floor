@@ -4,7 +4,7 @@
   "1-3": { "program": "R40 RJ24 R100", "deaths": 0, "naive": "R200", "beat": "low road grows teeth" },
   "1-4": { "program": "R140 RJ20 R30 L69 LJ24 _8 LJ24 L6 _10 R80", "deaths": 0, "naive": "R140 RJ20 R80", "beat": "the door flees twice" },
   "1-5": { "program": "R44 RJ24 R100", "deaths": 0, "naive": "R200", "beat": "bridge middle is painted on" },
-  "1-6": { "program": "R85 _45 R20 RJ16 R18 RJ20 R40", "deaths": 0, "naive": "R200", "beat": "second block lands where you get stuck" },
+  "1-6": { "program": "R92 _50 R20 RJ16 R18 RJ20 R40", "deaths": 0, "naive": "R200", "beat": "second block lands where you get stuck" },
   "1-7": { "program": "R40 RJ20 R260", "deaths": 0, "naive": "R40 RJ20 R30 RJ20 R10", "beat": "tall wall gives up if you wait" },
   "1-8": { "program": "R24 RJ24 R20 RJ20 R10 RJ24 R60", "deaths": 0, "naive": "R300", "beat": "everything at once" }
 }

@@ -11,6 +11,7 @@
     "exactOptionalPropertyTypes": false,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "resolveJsonModule": true,
     "useDefineForClassFields": true,
     "noEmit": true,
     "types": ["vite/client"]
