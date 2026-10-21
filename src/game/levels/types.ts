@@ -70,6 +70,7 @@ export interface TrapDef {
     cycle?: boolean;       // repeat forever
     hold?: number;         // spikes: ms held out / plate hold
     safe?: boolean;        // world-remembers: skip this trap on given attempts
+    retract?: number;      // wall: ms after finishing before it undoes itself
   };
 }
 

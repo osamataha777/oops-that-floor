@@ -26,6 +26,8 @@ export interface SimResult {
   final: { x: number; y: number; state: string };
   trace: [number, number][];
   illegalTransitions: number;
+  /** Frame-stamped trap state changes and goal moves. */
+  events: string[];
 }
 
 type Seg = { dir: -1 | 0 | 1; jump: boolean; frames: number; wait?: boolean };
@@ -64,7 +66,7 @@ export function installSim(game: Phaser.Game): void {
 
   const api = {
     /** Run `program` on level `index` from a fresh start. */
-    run(index: number, program: string, opts: { tail?: number; settle?: boolean } = {}): SimResult {
+    run(index: number, program: string, opts: { tail?: number; settle?: boolean; every?: number } = {}): SimResult {
       const segs = parseProgram(program);
       game.loop.sleep();
       t = game.loop.now || performance.now();
@@ -79,17 +81,30 @@ export function installSim(game: Phaser.Game): void {
       let completeFrame: number | null = null;
       let prevJump = false;
       let lastDeaths = 0;
+      const events: string[] = [];
+      const trapStates = new Map<string, string>();
+      let goalKey = '';
       const tick = (dir: -1 | 0 | 1, jump: boolean) => {
         scene.ctl.scripted = { dir, jumpDown: jump && !prevJump, jumpHeld: jump };
         prevJump = jump;
         step();
         frames++;
-        if (frames % 4 === 0) trace.push([Math.round(scene.player.x), Math.round(scene.player.y)]);
+        if (frames % (opts.every ?? 4) === 0) trace.push([Math.round(scene.player.x), Math.round(scene.player.y)]);
         if (scene.deathsThisVisit !== lastDeaths) {
           lastDeaths = scene.deathsThisVisit;
           causes.push(`${frames}:${Math.round(scene.player.x)},${Math.round(scene.player.y)}`);
         }
         if (scene.state === 'complete' && completeFrame === null) completeFrame = frames;
+        for (const t of scene.runtime.traps) {
+          if (trapStates.get(t.id) !== t.state) {
+            if (trapStates.has(t.id)) events.push(`${frames}:${t.id}=${t.state}`);
+            trapStates.set(t.id, t.state);
+          }
+        }
+        const g = scene.runtime.goal;
+        const gk = `${g.x},${g.y}`;
+        if (goalKey && gk !== goalKey) events.push(`${frames}:goal→${gk}`);
+        goalKey = gk;
       };
       outer: for (const s of segs) {
         if (s.wait) {
@@ -113,6 +128,7 @@ export function installSim(game: Phaser.Game): void {
         final: { x: Math.round(scene.player.x), y: Math.round(scene.player.y), state: scene.state },
         trace,
         illegalTransitions: scene.illegalTransitions,
+        events,
       };
       if (opts.settle !== false) game.loop.wake();
       return res;

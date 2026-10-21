@@ -196,6 +196,8 @@ export class FallBlockTrap extends Trap {
     const body = this.block.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(true);
     body.setImmovable(false);
+    // While falling it's a hazard, not a platform: Pip must not "catch" it.
+    this.block.setData('passThrough', true);
     this.ctx.feedback('trap.drop');
   }
 
@@ -218,6 +220,7 @@ export class FallBlockTrap extends Trap {
       body.setVelocity(0, 0);
       body.setAllowGravity(false);
       body.setImmovable(true);
+      this.block.setData('passThrough', false);
       this.ctx.feedback('trap.impact');
       this.complete();
     }
@@ -236,6 +239,7 @@ export class FallBlockTrap extends Trap {
     body.setAllowGravity(false);
     body.setImmovable(true);
     body.reset(this.home.x + this.block.displayWidth / 2, this.home.y + this.block.displayHeight / 2);
+    this.block.setData('passThrough', false);
     this.landed = false;
     this.fallT = 0;
     this.gfx.setPosition(this.home.x, this.home.y);
@@ -258,6 +262,8 @@ export class WallTrap extends Trap {
   private r!: Rect;
   private inverse = false;
   private moveAt = -1;
+  /** 'go' = first move, 'back' = changing its mind (params.retract). */
+  private leg: 'go' | 'back' = 'go';
 
   protected arm(): void {
     this.r = cellsRect(this.cells);
@@ -300,6 +306,16 @@ export class WallTrap extends Trap {
   protected onUpdate(): void {
     if (this.moveAt < 0 || this.state !== 'active') return;
     const k = Math.min(1, (this.elapsed - this.moveAt) / this.moveMs);
+    if (this.leg === 'back') {
+      // reverse of the first move, eased in — it sulks back
+      this.place(this.inverse ? 1 - k * k : k * k);
+      if (k >= 1) {
+        this.place(this.inverse ? 0 : 1);
+        this.moveAt = -1;
+        this.complete();
+      }
+      return;
+    }
     if (this.inverse) {
       this.place(k * k); // ease-in sink
     } else {
@@ -311,7 +327,16 @@ export class WallTrap extends Trap {
     if (k >= 1) {
       this.place(this.inverse ? 1 : 0);
       this.moveAt = -1;
-      this.complete();
+      const retract = this.def.params?.retract ?? 0;
+      if (retract > 0) {
+        // "changes its mind": hold, wobble a warning, then undo itself
+        this.after(Math.max(0, retract - 260), () => this.ctx.feedback('trap.warn'));
+        this.after(retract, () => {
+          this.leg = 'back';
+          this.moveAt = this.elapsed;
+          this.ctx.feedback(this.inverse ? 'trap.wall' : 'trap.open');
+        });
+      } else this.complete();
     }
   }
 
@@ -325,6 +350,7 @@ export class WallTrap extends Trap {
 
   protected restore(): void {
     this.moveAt = -1;
+    this.leg = 'go';
     const body = this.block.body as Phaser.Physics.Arcade.Body;
     body.enable = false;
     this.place(this.inverse ? 0 : 1);

@@ -74,6 +74,27 @@ export function parseLevel(def: LevelDef): ParsedLevel {
   const flatten = (cols: number[][]): Rect[] =>
     cols.flatMap((rowCols, r) => runs(r, rowCols));
 
+  // Merge identical row-runs stacked vertically into one rect. Arcade
+  // separates Y before X, so a seam between two stacked bodies on a wall
+  // face reads as a ceiling to anyone hugging that wall (Pip couldn't jump
+  // while pressed against ledges). Fewer bodies is also cheaper.
+  const mergeVertical = (rects: Rect[]): Rect[] => {
+    const open = new Map<string, Rect>();
+    const out: Rect[] = [];
+    for (const r of [...rects].sort((a, b) => a.y - b.y || a.x - b.x)) {
+      const key = `${r.x}:${r.w}`;
+      const above = open.get(key);
+      if (above && above.y + above.h === r.y) {
+        above.h += r.h;
+      } else {
+        const copy = { ...r };
+        open.set(key, copy);
+        out.push(copy);
+      }
+    }
+    return out;
+  };
+
   // Spike strips sit on whatever they're attached to: floor below → teeth
   // up from the cell bottom; ceiling above (and no floor) → teeth hanging
   // down. The kill zone matches the drawn teeth, inset 4 px for fairness.
@@ -93,7 +114,7 @@ export function parseLevel(def: LevelDef): ParsedLevel {
     def,
     width,
     height,
-    solids: flatten(solidCols),
+    solids: mergeVertical(flatten(solidCols)),
     platforms: flatten(platCols),
     spikes: spikeRects,
     ghosts: flatten(ghostCols),

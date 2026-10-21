@@ -26,6 +26,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private lastInput: InputState = { dir: 0, jumpDown: false, jumpHeld: false };
   /** Fall speed at the previous frame — used to grade landings. */
   private prevVy = 0;
+  /** Vertical velocity handed to the next physics step. */
+  private vyIn = 0;
   facing: 1 | -1 = 1;
 
   onEvent?: (e: PlayerEvent, data?: number) => void;
@@ -50,6 +52,20 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   get grounded(): boolean {
     const b = this.body as Phaser.Physics.Arcade.Body;
     return this.gSign === 1 ? b.blocked.down || b.touching.down : b.blocked.up || b.touching.up;
+  }
+
+  private huggingWall(): boolean {
+    const b = this.body as Phaser.Physics.Arcade.Body;
+    return b.touching.left || b.touching.right || b.blocked.left || b.blocked.right;
+  }
+
+  /** Is there really something above our head (ignoring the wall we hug)? */
+  private ceilingAbove(): boolean {
+    const b = this.body as Phaser.Physics.Arcade.Body;
+    const g = this.gSign;
+    const y = g === 1 ? b.y - 4 : b.y + b.height;
+    const hits = this.scene.physics.overlapRect(b.x + 7, y, b.width - 14, 4, true, true) as (Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody)[];
+    return hits.some((h) => h !== b && h.enable);
   }
 
   private get headBlocked(): boolean {
@@ -100,7 +116,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setGravityY(fallGravityExtra(body.velocity.y, g, this.scene.physics.world.gravity.y));
     body.setVelocityY(clampFall(body.velocity.y, g, this.cfg));
 
-    if (rising && this.headBlocked) {
+    if (this.headBlocked && this.huggingWall() && !this.ceilingAbove()) {
+      // Seam on a wall face mis-read as a ceiling (Arcade resolves Y before
+      // X while we're pressed a few px into the wall): undo the false bonk.
+      body.setVelocityY(this.vyIn + this.scene.physics.world.gravity.y * dt);
+    } else if (rising && this.headBlocked) {
       this.onEvent?.('bonk');
       this.cutArmed = false;
     }
@@ -112,6 +132,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     this.wasGrounded = grounded;
     this.prevVy = body.velocity.y;
+    this.vyIn = body.velocity.y;
 
     if (input.dir !== 0 && input.dir !== this.facing) {
       this.facing = input.dir;

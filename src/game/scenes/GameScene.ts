@@ -118,7 +118,9 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.runtime.solids);
     this.physics.add.collider(this.player, this.runtime.platforms);
-    this.physics.add.collider(this.player, this.runtime.dynamics);
+    // Falling hazards flag themselves pass-through so they crush instead of
+    // being caught on Pip's head.
+    this.physics.add.collider(this.player, this.runtime.dynamics, undefined, (_p, o) => !(o as Phaser.GameObjects.GameObject).getData?.('passThrough'));
     this.physics.add.collider(this.runtime.dynamics, this.runtime.solids);
     this.physics.add.collider(this.runtime.dynamics, this.runtime.dynamics);
 
