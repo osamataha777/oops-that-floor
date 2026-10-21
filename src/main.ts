@@ -39,6 +39,8 @@ async function boot(): Promise<void> {
   };
 
   const game = new Phaser.Game(config);
+  // debug/testing handle — harmless in an offline game, used by Playwright E2E
+  (window as unknown as { __otf: Phaser.Game }).__otf = game;
 
   // lock to landscape-ish presentation on devices that respect it
   try {

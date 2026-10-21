@@ -22,7 +22,7 @@ Status of every requirement, verified against this repo. ✅ = verified by a bui
 
 ## Needs real-device verification before store submission
 
-- [ ] ⚠️ Playtest all 40 levels end-to-end on a phone — validator proves structure, not feel
+- [ ] ⚠️ Playtest all 40 levels end-to-end on a phone — solvability BFS proves a path exists; fairness/timing still needs humans
 - [ ] ⚠️ Touch controls: multitouch feel, button placement/scaling on small + large screens
 - [ ] ⚠️ Safe-area padding on notched devices (adapter implemented, untested on hardware)
 - [ ] ⚠️ Haptics intensity/appropriateness on Android + iOS

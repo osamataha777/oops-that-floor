@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { LEVELS, levelAt, indexOfLevel, chapterIds } from '../../src/game/levels/index';
 import { validateAll, jumpSanity } from '../../src/game/levels/validate';
+import { solveLevel } from '../../src/game/levels/solve';
 import { parseLevel } from '../../src/game/levels/parse';
 import { TRAP_TYPES } from '../../src/game/levels/types';
 
@@ -61,5 +62,9 @@ describe('level design invariants', () => {
   });
   it('jump sanity produces no fatal issues', () => {
     expect(LEVELS.flatMap(jumpSanity).filter((i) => i.fatal)).toEqual([]);
+  });
+  it('every level has a plausible spawn→goal path (trap-aware BFS)', () => {
+    const unsolvable = LEVELS.filter((l) => !solveLevel(l).solvable).map((l) => l.id);
+    expect(unsolvable).toEqual([]);
   });
 });

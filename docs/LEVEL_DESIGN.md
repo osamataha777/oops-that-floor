@@ -43,7 +43,11 @@ Marker letters carry no fixed meaning; each level's `traps:` array maps a letter
 
 ## Validator coverage (`npm run validate:levels`)
 
-For each level: exact dimensions, exactly one spawn/goal, every glyph known, every marker has a matching parameterized trap (and vice versa), flood-fill reachability from spawn (ignoring traps), jump-gap sanity, and trap-param sanity (speeds, delays in range). Two **warnings** are intentional: `3-2` and `3-8` place goals embedded in solid ceiling, correct for gravity-flip levels.
+For each level: exact dimensions, exactly one spawn/goal, every glyph known, every marker has a matching parameterized trap (and vice versa), and trigger/parameter sanity (speeds, delays in range, valid refs).
+
+**Trap-aware solvability** (`src/game/levels/solve.ts`): a BFS over "player can occupy this cell" that understands trap semantics — collapse/timed/mover cells are standable, ghost cells are never solid, spike/crusher/spinner cells are lethal-but-jumpable, mover `at↔to` cells are ride-connected, and gravflip zones toggle an inverted-gravity state (including mid-arc traversal). The jump envelope is derived from `PHYSICS` constants (apex ≈3.8 tiles, flat reach ≈8 tiles) rather than guessed. Every level must have a plausible spawn→goal path. This is not a physics-perfect proof — it certifies *a path exists*, while playtesting certifies *the path is fair*.
+
+Two **warnings** are intentional: `3-2` and `3-8` place goals embedded in solid ceiling, correct for gravity-flip levels.
 
 ## Per-level design notes
 
