@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TrapDef, Rect, ParsedLevel } from '../levels/types';
+import { TrapDef, Rect, ParsedLevel, TriggerDef } from '../levels/types';
 import { TrapContext, cellsRect, playerRect, overlap } from './context';
 import { TILE } from '../core/config';
 
@@ -53,6 +53,22 @@ export abstract class Trap {
     return true;
   }
 
+  /**
+   * The trigger that actually fires the trap while armed. For attempt-gated
+   * traps the trigger IS the gate, so activation falls back to a per-type
+   * default (collapse→touch, spikes→proximity, everything else→always).
+   */
+  private activationTrigger(): TriggerDef {
+    const t = this.def.trigger;
+    if (t.event === 'attempt-gte' || t.event === 'attempt-eq') return this.defaultActivation();
+    return t;
+  }
+
+  /** Override per trap family to set the post-gate activation. */
+  protected defaultActivation(): TriggerDef {
+    return { event: 'always' };
+  }
+
   start(): void {
     this.arm();
     this.state = this.allowedThisAttempt() ? 'armed' : 'dormant';
@@ -60,7 +76,7 @@ export abstract class Trap {
   }
 
   protected subscribeTriggers(): void {
-    const t = this.def.trigger;
+    const t = this.activationTrigger();
     const on = (ev: string, fn: (...a: unknown[]) => void) => {
       this.ctx.bus.on(ev, fn);
       this.busHandlers.push({ ev, fn });
@@ -91,7 +107,7 @@ export abstract class Trap {
 
   /** Polling-style triggers evaluated every frame while armed. */
   private checkEdgeTriggers(): void {
-    const t = this.def.trigger;
+    const t = this.activationTrigger();
     const pr = playerRect(this.ctx.player);
     switch (t.event) {
       case 'always':

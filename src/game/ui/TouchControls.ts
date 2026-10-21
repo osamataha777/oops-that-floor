@@ -65,11 +65,21 @@ export class InputManager {
   }
 }
 
-/** On-screen buttons. Created only on touch-capable devices. */
+type Control = 'L' | 'R' | 'J';
+
+/**
+ * On-screen buttons over generous invisible thumb zones. Multi-pointer aware:
+ * each pointer owns exactly one control — a second finger can jump while the
+ * first holds a direction, and sliding between ◀/▶ hands off the direction.
+ */
 export class TouchControls extends Phaser.GameObjects.Container {
   private im: InputManager;
   private zones: Phaser.GameObjects.Zone[] = [];
   private circles: Phaser.GameObjects.Graphics[] = [];
+  private held = new Map<number, Control>(); // pointerId → control
+  private counts: Record<Control, number> = { L: 0, R: 0, J: 0 };
+  private buttons: { control: Control; g: Phaser.GameObjects.Graphics; draw: (down: boolean) => void }[] = [];
+  private areas: { control: Control; r: { x: number; y: number; w: number; h: number } }[] = [];
 
   constructor(scene: Phaser.Scene, im: InputManager, settings: SettingsData) {
     super(scene);
@@ -78,6 +88,64 @@ export class TouchControls extends Phaser.GameObjects.Container {
     this.setScrollFactor(0);
     this.build(settings);
     scene.add.existing(this);
+    scene.input.on('pointerdown', this.onDown, this);
+    scene.input.on('pointermove', this.onMove, this);
+    scene.input.on('pointerup', this.onUp, this);
+    scene.input.on('pointercancel', this.onUp, this);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardownInput());
+  }
+
+  private teardownInput(): void {
+    const i = this.scene.input;
+    i.off('pointerdown', this.onDown, this);
+    i.off('pointermove', this.onMove, this);
+    i.off('pointerup', this.onUp, this);
+    i.off('pointercancel', this.onUp, this);
+  }
+
+  /** Route a pointer to whichever control rect contains it. */
+  private route(p: Phaser.Input.Pointer): Control | null {
+    for (const a of this.areas) {
+      if (p.x >= a.r.x && p.x <= a.r.w && p.y >= a.r.y && p.y <= a.r.h) return a.control;
+    }
+    return null;
+  }
+
+  private onDown(p: Phaser.Input.Pointer): void {
+    if (this.held.has(p.id)) return;
+    const c = this.route(p);
+    if (!c) return;
+    this.held.set(p.id, c);
+    this.counts[c]++;
+    this.sync();
+  }
+
+  private onMove(p: Phaser.Input.Pointer): void {
+    const owned = this.held.get(p.id);
+    if (owned === undefined) return;
+    if (!p.isDown) return this.onUp(p);
+    const c = this.route(p);
+    if (c && c !== owned) {
+      this.counts[owned]--;
+      this.held.set(p.id, c);
+      this.counts[c]++;
+      this.sync();
+    }
+  }
+
+  private onUp(p: Phaser.Input.Pointer): void {
+    const owned = this.held.get(p.id);
+    if (owned === undefined) return;
+    this.held.delete(p.id);
+    this.counts[owned]--;
+    this.sync();
+  }
+
+  private sync(): void {
+    this.im.pressLeft(this.counts.L > 0);
+    this.im.pressRight(this.counts.R > 0);
+    this.im.pressJump(this.counts.J > 0);
+    for (const b of this.buttons) b.draw(this.counts[b.control] > 0);
   }
 
   private build(settings: SettingsData): void {
@@ -91,19 +159,24 @@ export class TouchControls extends Phaser.GameObjects.Container {
     const r = 46 * s;
     const gap = spread ? 120 * s : 84 * s;
 
-    // Visual buttons sit inside generous invisible thumb zones — missing the
-    // circle by 40px should never drop your input mid-jump.
     const leftX = padL + r;
     const rightX = padL + r * 2 + gap;
     const jumpX = GAME_WIDTH - padR - r * 1.2;
     const btnY = GAME_HEIGHT - padB;
 
-    this.addZoneBtn(leftX, btnY, r, '◀', { x: 0, y: btnY - r * 2.2, w: leftX + gap * 0.55, h: GAME_HEIGHT }, (v) => this.im.pressLeft(v));
-    this.addZoneBtn(rightX, btnY, r, '▶', { x: leftX + gap * 0.55, y: btnY - r * 2.2, w: rightX + gap * 0.8, h: GAME_HEIGHT }, (v) => this.im.pressRight(v));
-    this.addZoneBtn(jumpX, btnY, r * 1.18, '▲', { x: GAME_WIDTH * 0.55, y: btnY - r * 2.6, w: GAME_WIDTH, h: GAME_HEIGHT }, (v) => this.im.pressJump(v));
+    // Generous invisible thumb areas — the circles are just anchors.
+    this.areas = [
+      { control: 'L', r: { x: 0, y: btnY - r * 2.2, w: leftX + gap * 0.55, h: GAME_HEIGHT } },
+      { control: 'R', r: { x: leftX + gap * 0.55, y: btnY - r * 2.2, w: rightX + gap * 0.9, h: GAME_HEIGHT } },
+      { control: 'J', r: { x: GAME_WIDTH * 0.55, y: btnY - r * 2.6, w: GAME_WIDTH, h: GAME_HEIGHT } },
+    ];
+
+    this.addBtn(leftX, btnY, r, '◀', 'L');
+    this.addBtn(rightX, btnY, r, '▶', 'R');
+    this.addBtn(jumpX, btnY, r * 1.18, '▲', 'J');
   }
 
-  private addZoneBtn(x: number, y: number, r: number, glyph: string, zone: { x: number; y: number; w: number; h: number }, on: (v: boolean) => void): void {
+  private addBtn(x: number, y: number, r: number, glyph: string, control: Control): void {
     const g = this.scene.add.graphics();
     const draw = (down: boolean) => {
       g.clear();
@@ -122,20 +195,9 @@ export class TouchControls extends Phaser.GameObjects.Container {
     };
     draw(false);
     g.setPosition(x, y);
-    const z = this.scene.add.zone((zone.x + zone.w) / 2, (zone.y + zone.h) / 2, zone.w - zone.x, zone.h - zone.y).setInteractive();
-    z.setScrollFactor(0);
-    z.on('pointerdown', () => { on(true); draw(true); });
-    const off = () => { on(false); draw(false); };
-    z.on('pointerup', off);
-    z.on('pointerout', off);
-    z.on('pointercancel', off);
-    this.add([g, z]);
-    this.zones.push(z);
+    this.add(g);
+    this.buttons.push({ control, g, draw });
     this.circles.push(g);
-  }
-
-  private addBtn(x: number, y: number, r: number, glyph: string, on: (v: boolean) => void): void {
-    this.addZoneBtn(x, y, r, glyph, { x: x - r * 1.25, y: y - r * 1.25, w: x + r * 1.25, h: y + r * 1.25 }, on);
   }
 
   static shouldShow(): boolean {

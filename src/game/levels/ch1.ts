@@ -90,9 +90,8 @@ export const CH1: LevelDef[] = [
     quip: 'The floor feels... hollow.',
     tip: 'Some floors are only painted on. Take the high road.',
     map: [
-      E, E, E, E, E, E, E, E, E, E, E, E,
+      E, E, E, E, E, E, E, E, E, E, E, E, E,
       '.........==..==.................',
-      E,
       '..@..........................G..',
       '########~~~~####################',
       '########....####################',

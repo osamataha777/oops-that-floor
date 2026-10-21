@@ -13,6 +13,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   readonly cfg: MoveConfig = PHYSICS;
   assist = new JumpAssist(PHYSICS);
   private wasGrounded = false;
+  private wasJumpHeld = false;
   private runFrame = 0;
   private runTimer = 0;
   private dead = false;
@@ -59,11 +60,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.onEvent?.('jump');
     }
 
-    // Variable jump height.
-    if (!input.jumpHeld) {
+    // Variable jump height — cut once on the release edge only. A per-frame
+    // cut would also crush externally-applied impulses (traps, launches).
+    if (!input.jumpHeld && this.wasJumpHeld) {
       const cut = applyJumpCut(body.velocity.y, this.gSign, this.cfg);
       if (cut !== body.velocity.y) body.setVelocityY(cut);
     }
+    this.wasJumpHeld = input.jumpHeld;
     body.setVelocityY(clampFall(body.velocity.y, this.gSign, this.cfg));
 
     if (!this.wasGrounded && grounded) {
@@ -128,6 +131,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setAngle(0);
     this.assist.reset();
     this.wasGrounded = false;
+    this.wasJumpHeld = false;
   }
 
   get isDead(): boolean {

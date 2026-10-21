@@ -11,6 +11,11 @@ export class HiddenSpikesTrap extends Trap {
   private periodic = false;
   private cycleT = 0;
 
+  /** Attempt-gated spikes behave like any other hidden spike — they pop when the player gets close. */
+  protected override defaultActivation(): import('../../levels/types').TriggerDef {
+    return { event: 'proximity', distance: 60 };
+  }
+
   protected arm(): void {
     this.periodic = (this.def.params?.period ?? 0) > 0;
     for (const cell of this.cells) {

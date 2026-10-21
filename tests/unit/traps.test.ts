@@ -16,16 +16,16 @@ describe('attempt-gated trap contract', () => {
   // Contract: `attempt` is 1-based — the first try is attempt 1, the second try
   // (after one death/restart) is attempt 2. Level data `n` values are authored
   // against this numbering.
-  it('attempt-eq only targets the second try', () => {
+  it('attempt-eq targets the first try only (world-remembers stings)', () => {
     for (const l of LEVELS) {
       for (const t of l.traps) {
         if (t.trigger.event === 'attempt-eq') {
-          expect(t.trigger.n, `${l.id}:${t.id} should use 1-based attempt numbers`).toBe(2);
+          expect(t.trigger.n, `${l.id}:${t.id} should use 1-based attempt numbers`).toBe(1);
         }
       }
     }
   });
-  it('attempt-gte thresholds are meaningful (≥2) or deliberately impossible', () => {
+  it('attempt-gte thresholds change the world after the first death (≥2)', () => {
     for (const l of LEVELS) {
       for (const t of l.traps) {
         if (t.trigger.event === 'attempt-gte') {

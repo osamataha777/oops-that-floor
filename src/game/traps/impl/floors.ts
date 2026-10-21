@@ -21,6 +21,11 @@ function freeSolid(ctx: import('../context').TrapContext, b: Phaser.Physics.Arca
 export class CollapseTrap extends Trap {
   private cellG: { cell: import('../../levels/types').Rect; g: Phaser.GameObjects.Graphics; body: Phaser.Physics.Arcade.Sprite }[] = [];
 
+  /** Attempt-gated collapse floors crumble when stepped on. */
+  protected override defaultActivation(): import('../../levels/types').TriggerDef {
+    return { event: 'touch' };
+  }
+
   protected arm(): void {
     for (const cell of this.cells) {
       const g = this.ctx.scene.add.graphics().setDepth(3);

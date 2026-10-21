@@ -51,8 +51,8 @@ export const CH3: LevelDef[] = [
       '#############...################',
     ],
     traps: [
-      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'attempt-gte', n: 3 }, params: { tell: 'crack' } },
-      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'attempt-eq', n: 2 } },
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'attempt-gte', n: 2 }, params: { tell: 'crack' } },
+      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'attempt-eq', n: 1 } },
     ],
   },
   {
@@ -120,8 +120,8 @@ export const CH3: LevelDef[] = [
       '#############...################',
     ],
     traps: [
-      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'attempt-gte', n: 3 }, params: { tell: 'crack' } },
-      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'attempt-eq', n: 2 }, params: { tell: 'crack' } },
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'attempt-gte', n: 2 }, params: { tell: 'crack' } },
+      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'attempt-eq', n: 1 }, params: { tell: 'crack' } },
     ],
   },
   {
