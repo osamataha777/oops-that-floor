@@ -140,14 +140,18 @@ export const synth = new Synth();
 export const SFX = {
   click: () => synth.tone({ freq: 660, freqEnd: 520, dur: 0.06, type: 'triangle', gain: 0.16 }),
   back: () => synth.tone({ freq: 420, freqEnd: 300, dur: 0.08, type: 'triangle', gain: 0.14 }),
-  jump: () => synth.tone({ freq: 300, freqEnd: 560, dur: 0.11, type: 'square', gain: 0.12 }),
+  jump: () => {
+    synth.tone({ freq: 280, freqEnd: 640, dur: 0.13, type: 'triangle', gain: 0.14 });
+    synth.tone({ freq: 560, freqEnd: 780, dur: 0.07, type: 'sine', gain: 0.06, when: 0.02 });
+  },
   land: () => {
-    synth.tone({ freq: 150, freqEnd: 70, dur: 0.08, type: 'sine', gain: 0.2 });
-    synth.noise({ dur: 0.05, filter: 500, gain: 0.08 });
+    synth.tone({ freq: 160, freqEnd: 60, dur: 0.09, type: 'sine', gain: 0.22 });
+    synth.noise({ dur: 0.05, filter: 500, gain: 0.09 });
   },
   pop: () => {
-    synth.tone({ freq: 900, freqEnd: 200, dur: 0.09, type: 'sawtooth', gain: 0.14 });
-    synth.noise({ dur: 0.07, filter: 2400, gain: 0.1 });
+    synth.tone({ freq: 950, freqEnd: 180, dur: 0.1, type: 'sawtooth', gain: 0.15 });
+    synth.noise({ dur: 0.07, filter: 2400, gain: 0.11 });
+    synth.tone({ freq: 1400, freqEnd: 900, dur: 0.05, type: 'square', gain: 0.05, when: 0.01 });
   },
   crumble: () => {
     synth.noise({ dur: 0.3, filter: 900, gain: 0.2 });

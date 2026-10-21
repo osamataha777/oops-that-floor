@@ -22,20 +22,25 @@ export interface ChapterTheme {
   name: string;
   bg: number;
   bgDecor: number;
+  /** far / mid parallax silhouette colors */
+  bgFar: number;
+  bgMid: number;
   solid: number;
   solidTop: number;
+  /** outline / shadow derived from solid */
+  solidDark: number;
   platform: number;
   accent: number;
   ink: number;
 }
 
-/** One flat pastel identity per chapter. Hazards always #ff5a4e family. */
+/** One storybook palette per chapter. Hazards always #ff5a4e family. */
 export const THEMES: ChapterTheme[] = [
-  { name: 'Trust Nothing',    bg: 0xf4efe6, bgDecor: 0xe9e1d2, solid: 0x6b5e52, solidTop: 0x8a7b6c, platform: 0xbfb3a2, accent: 0xf2a541, ink: 0x3f372f },
-  { name: 'Everything Moves', bg: 0xe8f0ee, bgDecor: 0xd8e4e0, solid: 0x4f6660, solidTop: 0x6a857d, platform: 0xa7bfb6, accent: 0xef8f3b, ink: 0x33423e },
-  { name: 'The Rules Changed',bg: 0xeee9f4, bgDecor: 0xdfd7ea, solid: 0x5d5470, solidTop: 0x7a6f92, platform: 0xb2a7c9, accent: 0xf2b13f, ink: 0x3d3650 },
-  { name: 'Chaos Academy',    bg: 0xf6ece8, bgDecor: 0xecddd4, solid: 0x74544a, solidTop: 0x927064, platform: 0xc4a597, accent: 0xe8a03c, ink: 0x473631 },
-  { name: 'Final Betrayal',   bg: 0xe7ebf3, bgDecor: 0xd6dcea, solid: 0x4a5670, solidTop: 0x64708e, platform: 0x9ea9c4, accent: 0xf2a141, ink: 0x303850 },
+  { name: 'Trust Nothing',     bg: 0xf3ead9, bgDecor: 0xe7dbbe, bgFar: 0xead9bc, bgMid: 0xddc9a2, solid: 0x7d5a48, solidTop: 0xa37c5e, solidDark: 0x5c4134, platform: 0xc9b391, accent: 0xf2a541, ink: 0x3f372f },
+  { name: 'Everything Moves',  bg: 0xddeee6, bgDecor: 0xc3e0d2, bgFar: 0xbfe0d0, bgMid: 0xa3cdb8, solid: 0x3f6a5e, solidTop: 0x5f9483, solidDark: 0x2c4d45, platform: 0x9fc7b5, accent: 0xef8f3b, ink: 0x2c423d },
+  { name: 'The Rules Changed', bg: 0xe6ddf5, bgDecor: 0xd2c3ea, bgFar: 0xcdbde8, bgMid: 0xb3a1d6, solid: 0x5c4c80, solidTop: 0x8473ad, solidDark: 0x413660, platform: 0xbcaede, accent: 0xf2b13f, ink: 0x3a3154 },
+  { name: 'Chaos Academy',     bg: 0xf7e3d9, bgDecor: 0xf0cfbc, bgFar: 0xf0c9ac, bgMid: 0xe2ad8b, solid: 0x8a4f3d, solidTop: 0xb0715a, solidDark: 0x63372b, platform: 0xd9ab8f, accent: 0xe8a03c, ink: 0x4a3128 },
+  { name: 'Final Betrayal',    bg: 0xd9e1f0, bgDecor: 0xbccae3, bgFar: 0xb4c4e0, bgMid: 0x93a7cd, solid: 0x41507a, solidTop: 0x60709c, solidDark: 0x2c3a5e, platform: 0xa4b2d4, accent: 0xf2a141, ink: 0x2c3450 },
 ];
 
 export const COLORS = {

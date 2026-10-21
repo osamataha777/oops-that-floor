@@ -22,33 +22,90 @@ export class MenuScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(theme.bg);
     this.cameras.main.fadeIn(200);
 
-    // decor + a little Pip doing idle hops
+    // soft horizon + ground
     const g = this.add.graphics();
-    g.fillStyle(theme.bgDecor, 0.7);
-    g.fillEllipse(GAME_WIDTH / 2, GAME_HEIGHT + 60, 900, 300);
+    g.fillStyle(theme.bgFar, 0.8);
+    for (let i = 0; i < 5; i++) g.fillEllipse(i * 260 - 40, GAME_HEIGHT + 40, 360, 200);
     g.fillStyle(theme.solid, 1);
-    g.fillRoundedRect(0, GAME_HEIGHT - 90, GAME_WIDTH, 90, { tl: 20, tr: 20, bl: 0, br: 0 });
+    g.fillRoundedRect(0, GAME_HEIGHT - 90, GAME_WIDTH, 92, { tl: 20, tr: 20, bl: 0, br: 0 });
     g.fillStyle(theme.solidTop, 1);
     g.fillRoundedRect(0, GAME_HEIGHT - 90, GAME_WIDTH, 14, { tl: 20, tr: 20, bl: 0, br: 0 });
+    g.fillStyle(theme.solidDark, 0.5);
+    g.fillRoundedRect(0, GAME_HEIGHT - 76, GAME_WIDTH, 4, 0);
 
-    const pip = this.add.sprite(GAME_WIDTH / 2 + 200, GAME_HEIGHT - 118, 'pip-idle').setDepth(5);
-    this.tweens.add({
-      targets: pip,
-      y: pip.y - 26,
-      duration: 520,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-      onRepeat: () => pip.setTexture(Math.random() < 0.5 ? 'pip-idle' : 'pip-happy'),
-    });
+    // suspicious plank + spikes underneath — the whole joke in one image
+    const plankX = GAME_WIDTH / 2 + 210;
+    const plankY = GAME_HEIGHT - 90;
+    const plank = this.add.graphics().setDepth(4);
+    const paintPlank = (cracked: boolean) => {
+      plank.clear();
+      plank.fillStyle(theme.solidDark, 0.5);
+      plank.fillRoundedRect(plankX - 70, plankY - 10, 140, 12, 5);
+      plank.fillStyle(cracked ? 0x8a6a52 : 0xa37c5e, 1);
+      plank.fillRoundedRect(plankX - 70, plankY - 13, 140, 10, 5);
+      if (cracked) {
+        plank.lineStyle(1.6, 0x1a1512, 0.5);
+        plank.beginPath();
+        plank.moveTo(plankX - 8, plankY - 13);
+        plank.lineTo(plankX + 4, plankY - 4);
+        plank.moveTo(plankX - 30, plankY - 13);
+        plank.lineTo(plankX - 24, plankY - 6);
+        plank.strokePath();
+      }
+    };
+    paintPlank(false);
+    // spikes hiding below the plank
+    const spikeG = this.add.graphics().setDepth(3).setAlpha(0);
+    spikeG.fillStyle(0xff5a4e, 1);
+    for (let i = 0; i < 5; i++) {
+      const sx = plankX - 55 + i * 24;
+      spikeG.fillTriangle(sx, plankY + 18, sx + 10, plankY + 2, sx + 20, plankY + 18);
+    }
+    const pip = this.add.sprite(plankX, plankY - 32, 'pip-idle').setDepth(5).setScale(1.35);
+
+    // The menu vignette loop: idle → plank cracks → Pip panics → respawn grumpy.
+    const vignette = () => {
+      pip.setTexture('pip-idle');
+      paintPlank(false);
+      spikeG.setAlpha(0);
+      pip.setPosition(plankX, plankY - 32).setAngle(0).setScale(1.35);
+      this.time.delayedCall(1400, () => {
+        pip.setTexture('pip-curious');
+        paintPlank(true);
+        services.audio.sfx('crumble');
+        this.time.delayedCall(700, () => {
+          // plank drops out, Pip hovers shocked
+          plank.clear();
+          spikeG.setAlpha(1);
+          services.audio.sfx('pop');
+          pip.setTexture('pip-shock');
+          this.tweens.add({
+            targets: pip,
+            y: plankY + 4,
+            angle: 40,
+            duration: 480,
+            ease: 'Quad.easeIn',
+            onComplete: () => {
+              pip.setTexture('pip-dizzy');
+              this.time.delayedCall(1100, () => {
+                this.tweens.add({ targets: pip, x: plankX, y: plankY - 32, angle: 0, duration: 1, onComplete: vignette });
+                pip.setTexture('pip-defeated');
+              });
+            },
+          });
+        });
+      });
+    };
+    vignette();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.tweens.killTweensOf(pip));
 
     // title
-    const t1 = this.add.text(GAME_WIDTH / 2, 108, 'Oops!', { ...TXT.title, fontSize: '64px' }).setOrigin(0.5);
-    const t2 = this.add.text(GAME_WIDTH / 2, 168, 'THAT FLOOR!', { ...TXT.title, fontSize: '44px', color: '#b8452f' }).setOrigin(0.5);
+    const t1 = this.add.text(GAME_WIDTH / 2 - 90, 108, 'Oops!', { ...TXT.title, fontSize: '64px' }).setOrigin(0.5);
+    const t2 = this.add.text(GAME_WIDTH / 2 - 90, 168, 'THAT FLOOR!', { ...TXT.title, fontSize: '44px', color: '#b8452f' }).setOrigin(0.5);
     t1.setRotation(-0.04);
     t2.setRotation(-0.04);
     this.tweens.add({ targets: [t1, t2], y: '+=6', duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.add.text(GAME_WIDTH / 2, 214, 'the floor is a liar', TXT.small).setOrigin(0.5);
+    this.add.text(GAME_WIDTH / 2 - 90, 214, 'the floor is a liar', TXT.small).setOrigin(0.5);
 
     // unlock audio on first gesture
     this.input.once('pointerdown', () => services.audio.unlock());
@@ -57,7 +114,7 @@ export class MenuScene extends Phaser.Scene {
     // buttons
     const save = services.save;
     const nextIdx = Math.min(save.unlockedThrough, LEVELS.length - 1);
-    const bx = GAME_WIDTH / 2 - 110;
+    const bx = GAME_WIDTH / 2 - 220;
     const mk = (x: number, y: number, w: number, label: string, cb: () => void, fill = 0x4a4038) => {
       const b = makeButton(this, x, y, w, 52, label, { fill });
       b.on('pointerup', () => {

@@ -91,12 +91,19 @@ export class TouchControls extends Phaser.GameObjects.Container {
     const r = 46 * s;
     const gap = spread ? 120 * s : 84 * s;
 
-    this.addBtn(padL + r, GAME_HEIGHT - padB, r, '◀', (v) => this.im.pressLeft(v));
-    this.addBtn(padL + r * 2 + gap, GAME_HEIGHT - padB, r, '▶', (v) => this.im.pressRight(v));
-    this.addBtn(GAME_WIDTH - padR - r * 1.2, GAME_HEIGHT - padB, r * 1.18, '▲', (v) => this.im.pressJump(v));
+    // Visual buttons sit inside generous invisible thumb zones — missing the
+    // circle by 40px should never drop your input mid-jump.
+    const leftX = padL + r;
+    const rightX = padL + r * 2 + gap;
+    const jumpX = GAME_WIDTH - padR - r * 1.2;
+    const btnY = GAME_HEIGHT - padB;
+
+    this.addZoneBtn(leftX, btnY, r, '◀', { x: 0, y: btnY - r * 2.2, w: leftX + gap * 0.55, h: GAME_HEIGHT }, (v) => this.im.pressLeft(v));
+    this.addZoneBtn(rightX, btnY, r, '▶', { x: leftX + gap * 0.55, y: btnY - r * 2.2, w: rightX + gap * 0.8, h: GAME_HEIGHT }, (v) => this.im.pressRight(v));
+    this.addZoneBtn(jumpX, btnY, r * 1.18, '▲', { x: GAME_WIDTH * 0.55, y: btnY - r * 2.6, w: GAME_WIDTH, h: GAME_HEIGHT }, (v) => this.im.pressJump(v));
   }
 
-  private addBtn(x: number, y: number, r: number, glyph: string, on: (v: boolean) => void): void {
+  private addZoneBtn(x: number, y: number, r: number, glyph: string, zone: { x: number; y: number; w: number; h: number }, on: (v: boolean) => void): void {
     const g = this.scene.add.graphics();
     const draw = (down: boolean) => {
       g.clear();
@@ -115,7 +122,7 @@ export class TouchControls extends Phaser.GameObjects.Container {
     };
     draw(false);
     g.setPosition(x, y);
-    const z = this.scene.add.zone(x, y, r * 2.5, r * 2.5).setInteractive();
+    const z = this.scene.add.zone((zone.x + zone.w) / 2, (zone.y + zone.h) / 2, zone.w - zone.x, zone.h - zone.y).setInteractive();
     z.setScrollFactor(0);
     z.on('pointerdown', () => { on(true); draw(true); });
     const off = () => { on(false); draw(false); };
@@ -125,6 +132,10 @@ export class TouchControls extends Phaser.GameObjects.Container {
     this.add([g, z]);
     this.zones.push(z);
     this.circles.push(g);
+  }
+
+  private addBtn(x: number, y: number, r: number, glyph: string, on: (v: boolean) => void): void {
+    this.addZoneBtn(x, y, r, glyph, { x: x - r * 1.25, y: y - r * 1.25, w: x + r * 1.25, h: y + r * 1.25 }, on);
   }
 
   static shouldShow(): boolean {

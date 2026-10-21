@@ -115,20 +115,60 @@ export class GameScene extends Phaser.Scene {
   }
 
   private paintBackground(decor: number): void {
-    const g = this.add.graphics().setDepth(-5);
-    g.fillStyle(decor, 0.55);
-    // rolling hills silhouette
-    for (let i = 0; i < 8; i++) {
-      const x = i * 140 - 40;
-      g.fillEllipse(x + 80, GAME_HEIGHT + 30, 260, 190 + (i % 3) * 30);
+    const theme = chapterTheme(this.def.chapter);
+    const g = this.add.graphics().setDepth(-6);
+    // sun — soft disc drifting in the top-right
+    g.fillStyle(0xffffff, 0.35);
+    g.fillCircle(GAME_WIDTH - 150, 90, 34);
+    g.fillStyle(0xffffff, 0.18);
+    g.fillCircle(GAME_WIDTH - 150, 90, 52);
+    // far hills — slow silhouette band
+    g.fillStyle(theme.bgFar, 0.8);
+    for (let i = 0; i < 6; i++) {
+      g.fillEllipse(i * 200 + 60, GAME_HEIGHT + 40, 300, 220 + (i % 2) * 60);
     }
-    // faint dots pattern
-    g.fillStyle(0xffffff, 0.25);
-    for (let y = 40; y < GAME_HEIGHT; y += 90) {
-      for (let x = (y / 90) % 2 === 0 ? 40 : 90; x < GAME_WIDTH; x += 180) {
-        g.fillCircle(x, y, 2);
+    // mid hills
+    g.fillStyle(theme.bgMid, 0.65);
+    for (let i = 0; i < 8; i++) {
+      g.fillEllipse(i * 150 - 20, GAME_HEIGHT + 70, 240, 170 + (i % 3) * 40);
+    }
+    // near ground haze
+    g.fillStyle(decor, 0.4);
+    for (let i = 0; i < 9; i++) {
+      g.fillEllipse(i * 130 + 30, GAME_HEIGHT + 100, 220, 140);
+    }
+
+    if (!services.settings.reducedMotion) {
+      // drifting clouds — cheap life
+      for (let i = 0; i < 4; i++) {
+        const cy = 40 + i * 60;
+        const cloud = this.add.container(-120 + i * 260, cy).setDepth(-5);
+        cloud.add(this.add.ellipse(0, 0, 130, 34, 0xffffff, 0.5));
+        cloud.add(this.add.ellipse(-30, -14, 60, 24, 0xffffff, 0.5));
+        cloud.add(this.add.ellipse(28, -10, 50, 20, 0xffffff, 0.5));
+        this.tweens.add({
+          targets: cloud,
+          x: GAME_WIDTH + 140,
+          duration: 24000 + i * 7000,
+          repeat: -1,
+          onRepeat: () => cloud.setX(-160),
+        });
+      }
+      // floating dust motes
+      for (let i = 0; i < 14; i++) {
+        const m = this.add.circle(Math.random() * GAME_WIDTH, Math.random() * GAME_HEIGHT, 1.5 + Math.random(), 0xffffff, 0.25).setDepth(-4);
+        this.tweens.add({ targets: m, y: m.y - 40, alpha: 0, duration: 4000 + Math.random() * 4000, repeat: -1, yoyo: true, delay: Math.random() * 3000 });
       }
     }
+
+    // vignette — subtle darkening at edges for depth
+    const v = this.add.graphics().setDepth(-2);
+    v.fillStyle(0x000000, 0.06);
+    v.fillRect(0, 0, GAME_WIDTH, 26);
+    v.fillRect(0, GAME_HEIGHT - 26, GAME_WIDTH, 26);
+    v.fillStyle(0x000000, 0.04);
+    v.fillRect(0, 0, 20, GAME_HEIGHT);
+    v.fillRect(GAME_WIDTH - 20, 0, 20, GAME_HEIGHT);
   }
 
   private buildHud(): void {

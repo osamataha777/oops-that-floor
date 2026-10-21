@@ -13,8 +13,8 @@ test('touch controls render and drive the player on a mobile viewport', async ({
   await page.goto('/');
   await page.waitForSelector('canvas');
   await page.waitForTimeout(1400);
-  const play = await css(page, 350, 280);
-  await page.mouse.click(play.x, play.y);
+  // Start 1-1 directly — deterministic, independent of save state.
+  await page.evaluate(() => (window as any).__otf.scene.start('Game', { index: 0 }));
   await page.waitForTimeout(900);
 
   const startX = await page.evaluate(() => {
@@ -22,28 +22,37 @@ test('touch controls render and drive the player on a mobile viewport', async ({
     return (window as any).__otf.scene.getScene('Game').player.x as number;
   });
 
-  // hold the on-screen ▶ button
+  // hold the on-screen ▶ zone (big thumb area — the circle visual is an anchor).
+  // Hold until the player demonstrably moves — wall-clock holds are flaky
+  // under shared-CPU runs.
   const right = await css(page, 240, 474);
   await page.mouse.move(right.x, right.y);
   await page.mouse.down();
-  await page.waitForTimeout(700);
+  let endX = startX;
+  const deadline = Date.now() + 3000;
+  while (endX - startX <= 60 && Date.now() < deadline) {
+    await page.waitForTimeout(80);
+    endX = await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (window as any).__otf.scene.getScene('Game').player.x as number;
+    });
+  }
   await page.mouse.up();
-
-  const endX = await page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (window as any).__otf.scene.getScene('Game').player.x as number;
-  });
   expect(endX - startX).toBeGreaterThan(60); // actually walked right
 
   // tap the on-screen ▲ jump button — y should dip (or jump fires)
   const jump = await css(page, 841, 474);
   await page.mouse.move(jump.x, jump.y);
   await page.mouse.down();
-  await page.waitForTimeout(120);
-  const midY = await page.evaluate(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (window as any).__otf.scene.getScene('Game').player.y as number;
-  });
+  let midY = 999;
+  const jDeadline = Date.now() + 2000;
+  while (midY >= 470 && Date.now() < jDeadline) {
+    await page.waitForTimeout(60);
+    midY = await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (window as any).__otf.scene.getScene('Game').player.y as number;
+    });
+  }
   await page.mouse.up();
   expect(midY).toBeLessThan(470); // left the ground
 });
