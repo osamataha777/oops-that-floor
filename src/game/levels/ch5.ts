@@ -1,0 +1,165 @@
+import { LevelDef } from './types';
+
+const E = '................................';
+const F = '################################';
+
+/** Chapter 5 — Final Betrayal. */
+export const CH5: LevelDef[] = [
+  {
+    id: '5-1', chapter: 5, index: 1, name: 'Trust Nothing II',
+    quip: 'The whole floor is on a timer.',
+    tip: 'Sprint. Every segment falls right after you touch it.',
+    map: [
+      E, E, E, E, E, E, E, E, E, E, E, E, E, E,
+      E,
+      '..@..........................G..',
+      '######aaa.bbb.ccc.ddd.##########',
+      '######..........................',
+    ],
+    traps: [
+      { id: 'a1', type: 'collapse', at: 'a', trigger: { event: 'touch' }, params: { fuse: 200, delay: 220, tell: 'crack' } },
+      { id: 'b1', type: 'collapse', at: 'b', trigger: { event: 'touch' }, params: { fuse: 200, delay: 220, tell: 'crack' } },
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { fuse: 200, delay: 220, tell: 'crack' } },
+      { id: 'd1', type: 'collapse', at: 'd', trigger: { event: 'touch' }, params: { fuse: 200, delay: 220, tell: 'crack' } },
+    ],
+  },
+  {
+    id: '5-2', chapter: 5, index: 2, name: 'Crusher Gauntlet',
+    quip: 'Three bouncers. None like you.',
+    tip: 'Trigger each slam, back off, walk under on the rise.',
+    map: [
+      E, E, E, E,
+      '............k....j....l.........',
+      E, E, E, E, E, E, E, E,
+      E,
+      E,
+      '..@........zz...yy...xx......G..',
+      F,
+      F,
+    ],
+    traps: [
+      { id: 'k1', type: 'crusher', at: 'k', to: 'z', trigger: { event: 'enter-area', area: 'z', delay: 160 }, params: { speed: 950 } },
+      { id: 'j1', type: 'crusher', at: 'j', to: 'y', trigger: { event: 'enter-area', area: 'y', delay: 100 }, params: { speed: 950 } },
+      { id: 'l1', type: 'crusher', at: 'l', to: 'x', trigger: { event: 'enter-area', area: 'x', delay: 40 }, params: { speed: 950 } },
+    ],
+  },
+  {
+    id: '5-3', chapter: 5, index: 3, name: 'Gravity Maze',
+    quip: 'The spikes own the floor. Take the ceiling.',
+    map: [
+      F, F,
+      '.....................u..........',
+      E, E, E, E, E, E, E, E, E,
+      '...........................G....',
+      '..........................===...',
+      '..........v.....................',
+      '..@..........XXXXXXX............',
+      '############..........##########',
+      '############..........##########',
+    ],
+    traps: [
+      { id: 'v1', type: 'gravflip', at: 'v', trigger: { event: 'touch' } },
+      { id: 'u1', type: 'gravflip', at: 'u', trigger: { event: 'touch' } },
+    ],
+  },
+  {
+    id: '5-4', chapter: 5, index: 4, name: 'Memory Lane',
+    quip: 'Attempt one is a different level.',
+    tip: 'First time: bridge + spikes. After that, neither.',
+    map: [
+      E, E, E, E, E, E, E, E, E, E, E, E,
+      '.............===................',
+      '.............===................',
+      E,
+      '..@..........................G..',
+      '##########ccccc..ss#############',
+      '##########.....#################',
+    ],
+    traps: [
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'attempt-gte', n: 2 }, params: { tell: 'crack' } },
+      { id: 's1', type: 'spikes', at: 's', trigger: { event: 'attempt-eq', n: 1 }, params: { tell: 'crack' } },
+    ],
+  },
+  {
+    id: '5-5', chapter: 5, index: 5, name: 'The Gauntlet',
+    quip: 'Every trap brought a friend.',
+    map: [
+      E, E, E, E,
+      '..........................kk....',
+      E, E, E, E, E, E, E, E,
+      '...............o................',
+      '......................tt........',
+      '..@....................zzzz..G..',
+      '######vvv..cc...#####....#######',
+      '#########....########....#######',
+    ],
+    traps: [
+      { id: 'v1', type: 'conveyor', at: 'v', trigger: { event: 'always' }, params: { dir: 1, speed: 75 } },
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { delay: 200, tell: 'crack' } },
+      { id: 'o1', type: 'spinner', at: 'o', trigger: { event: 'always', delay: 400 }, params: { len: 2, speed: 105 } },
+      { id: 't1', type: 'timed', at: 't', trigger: { event: 'touch' }, params: { fuse: 700, off: 1200, cycle: true } },
+      { id: 'k1', type: 'crusher', at: 'k', to: 'z', trigger: { event: 'enter-area', area: 'z', delay: 160 }, params: { speed: 950 } },
+    ],
+  },
+  {
+    id: '5-6', chapter: 5, index: 6, name: 'Door Simulator',
+    quip: 'Four doors. One is honest. Eventually.',
+    tip: 'The real one runs back once. Corner it.',
+    map: [
+      E, E, E, E, E, E, E, E, E, E, E, E, E, E,
+      E,
+      '..@............t....d...e....G..',
+      F,
+      F,
+    ],
+    traps: [
+      { id: 'd1', type: 'fakegoal', at: 'd', trigger: { event: 'touch' } },
+      { id: 'e1', type: 'fakegoal', at: 'e', trigger: { event: 'touch' } },
+      { id: 'g1', type: 'shygoal', at: 'G', to: 't', trigger: { event: 'proximity', distance: 85 }, params: { hops: 1 } },
+    ],
+  },
+  {
+    id: '5-7', chapter: 5, index: 7, name: 'Everything at Once',
+    quip: 'The examiners got creative.',
+    map: [
+      F, F,
+      '..........................u.....',
+      E, E, E, E, E, E, E, E, E,
+      '.................o..............',
+      E,
+      '...................q............',
+      '..@...........................G.',
+      '######vvv..ccc...####..####..###',
+      '#########.....#######..####..###',
+    ],
+    traps: [
+      { id: 'v1', type: 'conveyor', at: 'v', trigger: { event: 'always' }, params: { dir: 1, speed: 75 } },
+      { id: 'c1', type: 'collapse', at: 'c', trigger: { event: 'touch' }, params: { delay: 180, tell: 'crack' } },
+      { id: 'o1', type: 'spinner', at: 'o', trigger: { event: 'always', delay: 400 }, params: { len: 2, speed: 110 } },
+      { id: 'q1', type: 'gravflip', at: 'q', trigger: { event: 'touch' } },
+      { id: 'u1', type: 'gravflip', at: 'u', trigger: { event: 'touch' } },
+    ],
+  },
+  {
+    id: '5-8', chapter: 5, index: 8, name: 'The Final Betrayal',
+    quip: 'You knew this was coming.',
+    tip: 'Sprint, press, bait, chase. In that order.',
+    map: [
+      E, E, E, E, E,
+      '........................k.......',
+      E, E, E, E, E, E, E, E,
+      '...................w............',
+      '..@...........p....w.tzzzz...G..',
+      '######aaa.bbb.##################',
+      '######..........................',
+    ],
+    traps: [
+      { id: 'a1', type: 'collapse', at: 'a', trigger: { event: 'touch' }, params: { fuse: 200, delay: 220, tell: 'crack' } },
+      { id: 'b1', type: 'collapse', at: 'b', trigger: { event: 'touch' }, params: { fuse: 200, delay: 220, tell: 'crack' } },
+      { id: 'p1', type: 'plate', at: 'p', trigger: { event: 'touch' } },
+      { id: 'w1', type: 'wall', at: 'w', trigger: { event: 'press', ref: 'p1' }, params: { dir: -1 } },
+      { id: 'k1', type: 'crusher', at: 'k', to: 'z', trigger: { event: 'enter-area', area: 'z', delay: 160 }, params: { speed: 950 } },
+      { id: 'g1', type: 'shygoal', at: 'G', to: 't', trigger: { event: 'proximity', distance: 80 }, params: { hops: 1 } },
+    ],
+  },
+];
