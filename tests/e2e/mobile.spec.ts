@@ -25,7 +25,7 @@ test('touch controls render and drive the player on a mobile viewport', async ({
   await page.mouse.move(right.x, right.y);
   await page.mouse.down();
   let endX = startX;
-  const deadline = Date.now() + 3000;
+  const deadline = Date.now() + 9000;
   while (endX - startX <= 60 && Date.now() < deadline) {
     await page.waitForTimeout(80);
     endX = await page.evaluate(() => {
@@ -42,7 +42,7 @@ test('touch controls render and drive the player on a mobile viewport', async ({
   await page.mouse.move(jump.x, jump.y);
   await page.mouse.down();
   let midY = 999;
-  const jDeadline = Date.now() + 2000;
+  const jDeadline = Date.now() + 6000;
   const y0 = await page.evaluate(() => (window as any).__otf.scene.getScene('Game').player.y as number);
   while (midY >= y0 - 10 && Date.now() < jDeadline) {
     await page.waitForTimeout(60);

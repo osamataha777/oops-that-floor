@@ -1,141 +1,200 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, THEMES } from '../core/config';
+import { GAME_HEIGHT, THEMES } from '../core/config';
 import { TXT, FONT } from '../ui/theme';
-import { makeButton, tinyText } from '../ui/widgets';
+import { makeButton, iconButton, toast, INK } from '../ui/widgets';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { services } from '../core/services';
 import { completionCount } from '../../services/progress';
 import { decodeChallenge, encodeChallenge } from '../../services/challenge';
 import { LEVELS, levelAt } from '../levels/index';
-import { isNative, shareText } from '../../platform/native';
-import { setupCamera } from '../core/view';
+import { shareText } from '../../platform/native';
 import { ACHIEVEMENTS } from '../../services/achievements';
+import { VIEW, setupCamera } from '../core/view';
+import { paintBackdrop } from '../world/Backdrop';
+import { drawCell, ALL_EXPOSED } from '../traps/impl/draw';
+import { PipView } from '../entities/PipView';
+import { transitionTo } from '../ui/transition';
+import { MOTION } from '../anim/motion';
 
+/**
+ * Title screen. One dominant action (Play / Continue), the world of the
+ * chapter you're in, and Pip doing the whole joke of the game in miniature:
+ * standing on a plank that eventually changes its mind.
+ */
 export class MenuScene extends Phaser.Scene {
   private overlay: Phaser.GameObjects.Container | null = null;
+  private pip!: PipView;
+  private pipState: 'idle' | 'falling' = 'idle';
 
   constructor() {
     super({ key: 'Menu' });
   }
 
-  create(): void {
-    const theme = THEMES[0];
-    setupCamera(this);
-    this.cameras.main.setBackgroundColor(theme.bg);
-    this.cameras.main.fadeIn(200);
+  create(data: { finale?: boolean } = {}): void {
+    const save = services.save;
+    const nextIdx = Math.min(save.unlockedThrough, LEVELS.length - 1);
+    const next = levelAt(nextIdx);
+    const chapter = completionCount(save) >= LEVELS.length ? 5 : next.chapter;
+    const theme = THEMES[chapter - 1];
+    const rm = services.settings.reducedMotion;
+    services.audio.setChapterRoot('menu');
 
-    // soft horizon + ground
-    const g = this.add.graphics();
-    g.fillStyle(theme.bgFar, 0.8);
-    for (let i = 0; i < 5; i++) g.fillEllipse(i * 260 - 40, GAME_HEIGHT + 40, 360, 200);
-    g.fillStyle(theme.solid, 1);
-    g.fillRoundedRect(0, GAME_HEIGHT - 90, GAME_WIDTH, 92, { tl: 20, tr: 20, bl: 0, br: 0 });
-    g.fillStyle(theme.solidTop, 1);
-    g.fillRoundedRect(0, GAME_HEIGHT - 90, GAME_WIDTH, 14, { tl: 20, tr: 20, bl: 0, br: 0 });
-    g.fillStyle(theme.solidDark, 0.5);
-    g.fillRoundedRect(0, GAME_HEIGHT - 76, GAME_WIDTH, 4, 0);
+    const cam = setupCamera(this, false);
+    cam.setBackgroundColor(theme.bg);
+    cam.fadeIn(MOTION.scene.fadeIn);
+    paintBackdrop(this, chapter, theme, rm, 0);
 
-    // suspicious plank + spikes underneath — the whole joke in one image
-    const plankX = GAME_WIDTH / 2 + 210;
-    const plankY = GAME_HEIGHT - 90;
-    const plank = this.add.graphics().setDepth(4);
+    const W = VIEW.w;
+    const dark = chapter === 5;
+    const ink = dark ? '#fffaf0' : '#3f372f';
+
+    // ---- ground strip with Pip's treacherous plank
+    const groundY = GAME_HEIGHT - 70;
+    const g = this.add.graphics().setDepth(2);
+    for (let x = -30; x < W + 30; x += 30) {
+      drawCell(g, x, groundY, { ...ALL_EXPOSED, left: false, right: false, bottom: false }, theme);
+      drawCell(g, x, groundY + 30, { top: false, bottom: false, left: false, right: false }, theme);
+      drawCell(g, x, groundY + 60, { top: false, bottom: false, left: false, right: false }, theme);
+    }
+    const plankX = W * 0.72;
+    const hole = this.add.graphics().setDepth(2.5);
+    hole.fillStyle(0x1f1a16, 0.55).fillRoundedRect(plankX - 45, groundY - 2, 90, 30, 6).setVisible(false);
+    const plank = this.add.graphics().setDepth(3);
     const paintPlank = (cracked: boolean) => {
       plank.clear();
-      plank.fillStyle(theme.solidDark, 0.5);
-      plank.fillRoundedRect(plankX - 70, plankY - 10, 140, 12, 5);
-      plank.fillStyle(cracked ? 0x8a6a52 : 0xa37c5e, 1);
-      plank.fillRoundedRect(plankX - 70, plankY - 13, 140, 10, 5);
-      if (cracked) {
-        plank.lineStyle(1.6, 0x1a1512, 0.5);
-        plank.beginPath();
-        plank.moveTo(plankX - 8, plankY - 13);
-        plank.lineTo(plankX + 4, plankY - 4);
-        plank.moveTo(plankX - 30, plankY - 13);
-        plank.lineTo(plankX - 24, plankY - 6);
-        plank.strokePath();
-      }
+      drawCell(plank, -45, 0, { ...ALL_EXPOSED, right: false }, theme, cracked ? 'crack' : 'none', 9000, 9000);
+      drawCell(plank, -15, 0, { ...ALL_EXPOSED, left: false, right: false }, theme, cracked ? 'crack' : 'none', 9030, 9000);
+      drawCell(plank, 15, 0, { ...ALL_EXPOSED, left: false }, theme, cracked ? 'crack' : 'none', 9060, 9000);
+      plank.setPosition(plankX, groundY).setAngle(0).setAlpha(1);
     };
     paintPlank(false);
-    // spikes hiding below the plank
-    const spikeG = this.add.graphics().setDepth(3).setAlpha(0);
-    spikeG.fillStyle(0xff5a4e, 1);
-    for (let i = 0; i < 5; i++) {
-      const sx = plankX - 55 + i * 24;
-      spikeG.fillTriangle(sx, plankY + 18, sx + 10, plankY + 2, sx + 20, plankY + 18);
-    }
-    const pip = this.add.sprite(plankX, plankY - 32, 'pip-idle').setDepth(5).setScale(1.35);
 
-    // The menu vignette loop: idle → plank cracks → Pip panics → respawn grumpy.
-    const vignette = () => {
-      pip.setTexture('pip-idle');
-      paintPlank(false);
-      spikeG.setAlpha(0);
-      pip.setPosition(plankX, plankY - 32).setAngle(0).setScale(1.35);
-      this.time.delayedCall(1400, () => {
-        pip.setTexture('pip-curious');
-        paintPlank(true);
-        services.audio.sfx('crumble');
-        this.time.delayedCall(700, () => {
-          // plank drops out, Pip hovers shocked
-          plank.clear();
-          spikeG.setAlpha(1);
-          services.audio.sfx('pop');
-          pip.setTexture('pip-shock');
-          this.tweens.add({
-            targets: pip,
-            y: plankY + 4,
-            angle: 40,
-            duration: 480,
-            ease: 'Quad.easeIn',
-            onComplete: () => {
-              pip.setTexture('pip-dizzy');
-              this.time.delayedCall(1100, () => {
-                this.tweens.add({ targets: pip, x: plankX, y: plankY - 32, angle: 0, duration: 1, onComplete: vignette });
-                pip.setTexture('pip-defeated');
-              });
-            },
+    this.pip = new PipView(this, 6);
+    this.pip.setReduceMotion(rm);
+    this.pip.root.setScale(2.1);
+    const pipHome = { x: plankX, y: groundY };
+    let pipPos = { ...pipHome };
+
+    // ---- title: letters that occasionally fall through the floor
+    const titleX = W * 0.3;
+    const oops = this.add.text(titleX, 104, 'Oops!', { ...TXT.title, fontSize: '78px', color: ink, stroke: dark ? '#2c2622' : '#fffaf0', strokeThickness: 10 }).setOrigin(0.5).setRotation(-0.05).setDepth(5);
+    const word = 'THAT FLOOR!';
+    const letters: Phaser.GameObjects.Text[] = [];
+    const style = { fontFamily: FONT, fontSize: '50px', fontStyle: '900', color: '#d9492f', stroke: '#2c2622', strokeThickness: 8 } as Phaser.Types.GameObjects.Text.TextStyle;
+    const widths = [...word].map((ch) => (ch === ' ' ? 18 : this.add.text(0, 0, ch, style).setVisible(false).width));
+    let lx = titleX - widths.reduce((a, b) => a + b, 0) / 2;
+    [...word].forEach((ch, i) => {
+      const t = this.add.text(lx + widths[i] / 2, 172, ch, style).setOrigin(0.5).setDepth(5).setRotation(-0.05);
+      lx += widths[i];
+      if (ch !== ' ') letters.push(t);
+    });
+    this.add.text(titleX, 222, theme === THEMES[0] ? 'the floor is a liar' : theme.tagline.toLowerCase(), { ...TXT.small, fontSize: '16px', color: ink }).setOrigin(0.5).setDepth(5).setAlpha(0.85);
+    if (!rm) {
+      this.tweens.add({ targets: oops, y: '+=6', duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      this.time.addEvent({
+        delay: 3200,
+        loop: true,
+        callback: () => {
+          const t = letters[Math.floor(Math.random() * letters.length)];
+          if (this.tweens.isTweening(t)) return;
+          const y0 = 172;
+          this.tweens.chain({
+            targets: t,
+            tweens: [
+              { y: y0 + 3, duration: 70, ease: 'Quad.easeOut' },
+              { y: y0 + 46, alpha: 0, angle: Phaser.Math.Between(-30, 30), duration: 220, ease: 'Quad.easeIn' },
+              { y: y0 - 24, alpha: 0, angle: -3, duration: 1 },
+              { y: y0, alpha: 1, duration: 300, ease: 'Bounce.easeOut', delay: 380 },
+            ],
           });
-        });
+        },
       });
-    };
-    vignette();
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.tweens.killTweensOf(pip));
+    }
 
-    // title
-    const t1 = this.add.text(GAME_WIDTH / 2 - 90, 108, 'Oops!', { ...TXT.title, fontSize: '64px' }).setOrigin(0.5);
-    const t2 = this.add.text(GAME_WIDTH / 2 - 90, 168, 'THAT FLOOR!', { ...TXT.title, fontSize: '44px', color: '#b8452f' }).setOrigin(0.5);
-    t1.setRotation(-0.04);
-    t2.setRotation(-0.04);
-    this.tweens.add({ targets: [t1, t2], y: '+=6', duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.add.text(GAME_WIDTH / 2 - 90, 214, 'the floor is a liar', TXT.small).setOrigin(0.5);
+    // ---- primary + secondary actions
+    const started = completionCount(save) > 0 || Object.keys(save.levels).length > 0;
+    const playLabel = started ? `Continue  ${next.id}` : 'Play';
+    const bx = titleX;
+    const play = makeButton(this, bx, 300, 280, 70, `▶  ${playLabel}`, { fill: 0x3f9d57, depth: 6 });
+    play.on('pointerup', () => this.go(() => this.scene.start('Game', { index: nextIdx })));
+    if (started) this.add.text(bx, 346, next.name, { ...TXT.small, fontSize: '15px', color: ink }).setOrigin(0.5).setDepth(6).setAlpha(0.85);
+    if (!rm) this.tweens.add({ targets: play, scale: 1.035, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+    const row = (x: number, label: string, cb: () => void) => {
+      const b = makeButton(this, x, 400, 132, 46, label, { fill: 0x5a4f46, depth: 6 });
+      b.on('pointerup', cb);
+    };
+    row(bx - 142, 'Levels', () => this.go(() => this.scene.start('Select')));
+    row(bx, 'Challenge', () => this.showChallenge());
+    row(bx + 142, 'Settings', () => this.showSettings());
+
+    // ---- footer stats
+    const done = completionCount(save);
+    const stats = `${done}/${LEVELS.length} cleared   ☠ ${save.deaths}   ★ ${save.achievements.length}/${ACHIEVEMENTS.length}`;
+    this.add.text(bx, GAME_HEIGHT - 38, stats, { ...TXT.chip, fontSize: '14px' }).setOrigin(0.5).setDepth(6);
+    this.add.text(W - 14, GAME_HEIGHT - 14, 'v1.0 · offline · no ads', { ...TXT.small, fontSize: '11px', color: '#fffaf0' }).setOrigin(1, 1).setDepth(6).setAlpha(0.7);
+
+    if (data.finale) toast(this, '★ You beat the floor. The floor would like a rematch.', { y: 40, hold: 4200, fill: 0xf2a541 });
 
     // unlock audio on first gesture
     this.input.once('pointerdown', () => services.audio.unlock());
     this.input.keyboard?.once('keydown', () => services.audio.unlock());
+    this.input.keyboard?.on('keydown-ENTER', () => this.go(() => this.scene.start('Game', { index: nextIdx })));
 
-    // buttons
-    const save = services.save;
-    const nextIdx = Math.min(save.unlockedThrough, LEVELS.length - 1);
-    const bx = GAME_WIDTH / 2 - 220;
-    const mk = (x: number, y: number, w: number, label: string, cb: () => void, fill = 0x4a4038) => {
-      const b = makeButton(this, x, y, w, 52, label, { fill });
-      b.on('pointerup', () => {
-        services.audio.unlock();
-        services.audio.sfx('click');
-        cb();
-      });
-      return b;
-    };
-    mk(bx, 280, 240, `▶  Play ${levelAt(nextIdx).id}`, () => this.scene.start('Game', { index: nextIdx }), 0x58a05c);
-    mk(bx, 344, 240, 'Levels', () => this.scene.start('Select'));
-    mk(bx + 250, 344, 200, 'Challenge', () => this.showChallenge());
-    mk(bx + 250, 280, 200, 'Settings', () => this.showSettings(), 0x6b5e52);
+    // ---- Pip's little loop: idle → suspicious → plank drops → dizzy return
+    let idleFor = 0;
+    let fallAt = 0;
+    const tapZone = this.add.zone(plankX, groundY - 40, 110, 100).setInteractive({ useHandCursor: true }).setDepth(7);
+    tapZone.on('pointerup', () => {
+      services.fx('player.jump');
+      this.pip.onJump();
+      this.pip.express('happy', 600);
+    });
+    this.events.on(Phaser.Scenes.Events.UPDATE, (_t: number, dt: number) => {
+      if (this.pipState === 'idle') {
+        idleFor += dt;
+        this.pip.update(dt, { x: pipPos.x, y: pipPos.y, vx: 0, vy: 0, grounded: true, gSign: 1, facing: -1, inputDir: 0, maxSpeed: 340 });
+        this.pip.lookAt({ x: bx, y: 300 });
+        if (!rm && idleFor > 5200 && fallAt === 0) {
+          fallAt = idleFor;
+          paintPlank(true);
+          this.pip.express('suspicious', 900);
+          services.fx('trap.crumble');
+        }
+        if (fallAt && idleFor - fallAt > 900) {
+          this.pipState = 'falling';
+          fallAt = 0;
+          idleFor = 0;
+          hole.setVisible(true);
+          this.tweens.add({ targets: plank, y: groundY + 120, angle: 24, alpha: 0, duration: 380, ease: 'Quad.easeIn' });
+          this.pip.express('shock', 2000);
+          this.pip.puppet('shock');
+          this.tweens.add({
+            targets: this.pip.root,
+            y: groundY + 70,
+            duration: 380,
+            ease: 'Quad.easeIn',
+            onComplete: () => {
+              this.time.delayedCall(700, () => {
+                paintPlank(false);
+                hole.setVisible(false);
+                pipPos = { ...pipHome };
+                this.pip.revive(true);
+                this.pip.root.setPosition(pipPos.x, pipPos.y).setScale(2.1);
+                this.pipState = 'idle';
+              });
+            },
+          });
+        }
+      }
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.pip.destroy());
+  }
 
-    // footer stats
-    const done = completionCount(save);
-    const stats = `${done}/40 cleared   ☠ ${save.deaths} deaths   ★ ${save.achievements.length}/${ACHIEVEMENTS.length}`;
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, stats, TXT.small).setOrigin(0.5);
-    tinyText(this, GAME_WIDTH / 2, GAME_HEIGHT - 12, 'v1.0 — offline, no ads, no mercy');
+  private go(fn: () => void): void {
+    services.audio.unlock();
+    if (this.overlay) return;
+    transitionTo(this, fn);
   }
 
   private showSettings(): void {
@@ -143,66 +202,82 @@ export class MenuScene extends Phaser.Scene {
     const p = new SettingsPanel(this, () => {
       p.destroy();
       this.overlay = null;
-    });
+    }, { onReset: () => this.scene.restart() });
+    p.setX(VIEW.w / 2);
     this.overlay = p;
   }
 
   private showChallenge(): void {
     if (this.overlay) return;
-    const c = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setDepth(80);
-    c.add(this.add.rectangle(0, 0, GAME_WIDTH * 2, GAME_HEIGHT * 2, 0x2b2418, 0.45).setInteractive());
-    c.add(this.add.rectangle(0, 0, 440, 360, 0xfffaf0).setStrokeStyle(0).setInteractive());
-    c.add(this.add.text(0, -140, 'Challenge a Friend', TXT.h2).setOrigin(0.5));
-    c.add(this.add.text(0, -96, 'Share your best clear — or enter a code\nyou received.', { ...TXT.small, align: 'center' }).setOrigin(0.5));
+    const W = VIEW.w;
+    const c = this.add.container(W / 2, GAME_HEIGHT / 2).setDepth(80);
+    const shade = this.add.rectangle(0, 0, W * 2, GAME_HEIGHT * 2, 0x1f1a16, 0.5).setInteractive();
+    c.add(shade);
+    const card = this.add.graphics();
+    card.fillStyle(0x000000, 0.2).fillRoundedRect(-230, -172, 460, 360, 24);
+    card.fillStyle(INK, 1).fillRoundedRect(-233, -183, 466, 366, 26);
+    card.fillStyle(0xfffaf0, 1).fillRoundedRect(-230, -180, 460, 360, 24);
+    c.add(card);
+    c.add(this.add.text(0, -146, 'Challenge a Friend', TXT.h2).setOrigin(0.5));
+    c.add(this.add.text(0, -112, 'Send your best clear, or enter a code you got.', { ...TXT.small, align: 'center' }).setOrigin(0.5));
 
-    // your latest challenge code: hardest cleared level
-    const cleared = Object.entries(services.save.levels)
-      .filter(([, r]) => r.completed)
-      .map(([id]) => id);
-    const lastId = cleared[cleared.length - 1];
-    const mine = lastId
-      ? encodeChallenge({ levelIndex: LEVELS.findIndex((l) => l.id === lastId), deaths: Math.max(0, (services.save.levels[lastId].bestAttempts || 1) - 1) })
-      : null;
-
-    const codeTxt = this.add
-      .text(0, -30, mine ? `Your code: ${mine}` : 'Finish a level to get a code', { ...TXT.body, fontFamily: FONT })
-      .setOrigin(0.5);
-    c.add(codeTxt);
-    if (mine) {
-      const bShare = makeButton(this, 0, 24, 240, 44, 'Share my challenge', { fill: 0x4a72b0 });
-      bShare.on('pointerup', () => {
-        const lvl = LEVELS.find((l) => l.id === lastId)!;
-        const d = Math.max(0, lvl ? (services.save.levels[lastId].bestAttempts || 1) - 1 : 0);
-        void shareText(`Level ${lastId} took me ${d + 1} ${d === 0 ? 'try' : 'tries'} in Oops! That Floor! Beat that. Code: ${mine}`);
+    // your challenge: the most recently cleared level (latest in the run)
+    const clearedIdx = LEVELS.map((l, i) => (services.save.levels[l.id]?.completed ? i : -1)).filter((i) => i >= 0);
+    const lastIdx = clearedIdx.length ? clearedIdx[clearedIdx.length - 1] : -1;
+    if (lastIdx >= 0) {
+      const lvl = LEVELS[lastIdx];
+      const best = Math.max(1, services.save.levels[lvl.id].bestAttempts || 1);
+      const code = encodeChallenge({ levelIndex: lastIdx, deaths: best - 1 });
+      c.add(this.add.text(0, -70, `${lvl.id} · ${lvl.name} · best ${best} ${best === 1 ? 'try' : 'tries'}`, TXT.body).setOrigin(0.5));
+      c.add(this.add.text(0, -36, code, { ...TXT.h2, fontFamily: 'ui-monospace, monospace', fontSize: '28px', color: '#4a72b0' }).setOrigin(0.5));
+      const bShare = makeButton(this, -86, 16, 160, 44, 'Share', { fill: 0x4a72b0 });
+      bShare.on('pointerup', async () => {
+        const r = await shareText(`Level ${lvl.id} took me ${best} ${best === 1 ? 'try' : 'tries'} in Oops! That Floor! Beat that — code ${code}`);
+        if (!this.scene.isActive()) return;
+        if (r === 'copied') toast(this, 'Challenge copied to clipboard');
+        else if (r === 'failed') toast(this, 'Sharing isn’t available — code: ' + code);
       });
-      c.add(bShare);
-    }
-
-    // code entry — native-friendly DOM input (real keyboard, paste, no prompt())
-    const entry = this.add.text(0, 84, 'Tap to enter code', { ...TXT.body, color: '#4a72b0' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    const shown = this.add.text(0, 120, '', { ...TXT.h2, fontFamily: 'ui-monospace, monospace' }).setOrigin(0.5);
-    entry.on('pointerup', () => {
-      this.openCodeEntry((code) => {
-        const dec = decodeChallenge(code, LEVELS.length - 1);
-        if (dec) {
-          const lvl = levelAt(dec.levelIndex);
-          shown.setText(`→ ${lvl.id} in ≤${dec.deaths + 1} tries`);
-          this.time.delayedCall(600, () => this.scene.start('Game', { index: dec.levelIndex, challengeDeaths: dec.deaths }));
-        } else {
-          shown.setText('Invalid code');
-          services.audio.sfx('denied');
+      const bCopy = makeButton(this, 86, 16, 160, 44, 'Copy code', { fill: 0x5a4f46 });
+      bCopy.on('pointerup', async () => {
+        try {
+          await navigator.clipboard.writeText(code);
+          toast(this, 'Code copied');
+        } catch {
+          toast(this, `Code: ${code}`);
         }
       });
-    });
-    c.add([entry, shown]);
+      c.add([bShare, bCopy]);
+    } else {
+      c.add(this.add.text(0, -36, 'Clear a level to get your first code.', TXT.body).setOrigin(0.5));
+    }
 
-    const close = makeButton(this, 0, 150, 140, 40, 'Close', {});
-    close.on('pointerup', () => {
+    const enter = makeButton(this, 0, 88, 260, 48, 'Enter a code', { fill: 0x3f9d57 });
+    const shown = this.add.text(0, 128, '', { ...TXT.small, fontSize: '15px' }).setOrigin(0.5);
+    enter.on('pointerup', () => {
+      this.openCodeEntry((code) => {
+        const dec = decodeChallenge(code, LEVELS.length - 1);
+        if (!dec) {
+          shown.setText('That code doesn’t look right (OTF-00-00-0).').setColor('#b8452f');
+          services.fx('ui.denied');
+          this.tweens.add({ targets: shown, x: { from: -8, to: 0 }, duration: 240, ease: 'Elastic.easeOut' });
+          return;
+        }
+        const lvl = levelAt(dec.levelIndex);
+        shown.setText(`${lvl.id} · beat it in ≤ ${dec.deaths + 1} tries`).setColor('#3f9d57');
+        this.time.delayedCall(700, () => this.go(() => this.scene.start('Game', { index: dec.levelIndex, challengeDeaths: dec.deaths })));
+      });
+    });
+    c.add([enter, shown]);
+    const close = iconButton(this, 206, -156, 'close', () => {
       c.destroy();
       this.overlay = null;
-    });
+    }, 40);
     c.add(close);
     this.overlay = c;
+    if (!services.settings.reducedMotion) {
+      c.setScale(0.9).setAlpha(0);
+      this.tweens.add({ targets: c, scale: 1, alpha: 1, duration: MOTION.ui.panelIn.ms, ease: MOTION.ui.panelIn.ease });
+    }
   }
 
   /**
@@ -213,20 +288,21 @@ export class MenuScene extends Phaser.Scene {
     const host = document.createElement('div');
     host.style.cssText =
       'position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;' +
-      'background:rgba(43,36,24,0.5);';
+      'background:rgba(31,26,22,0.55);';
     const box = document.createElement('div');
     box.style.cssText =
-      'background:#fffaf0;border-radius:18px;padding:22px 26px;display:flex;flex-direction:column;' +
+      'background:#fffaf0;border:3px solid #2c2622;border-radius:22px;padding:22px 26px;display:flex;flex-direction:column;' +
       'gap:12px;align-items:center;box-shadow:0 12px 40px rgba(0,0,0,.25);font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif;';
     const label = document.createElement('div');
     label.textContent = 'Challenge code';
-    label.style.cssText = 'font-size:15px;font-weight:700;color:#7a6f62;';
+    label.style.cssText = 'font-size:15px;font-weight:800;color:#7a6f62;';
     const input = document.createElement('input');
     input.placeholder = 'OTF-00-00-0';
-    input.setAttribute('maxlength', '11');
+    input.setAttribute('maxlength', '14');
     input.setAttribute('autocapitalize', 'characters');
     input.setAttribute('autocorrect', 'off');
     input.setAttribute('spellcheck', 'false');
+    input.setAttribute('inputmode', 'text');
     input.style.cssText =
       'font-size:26px;font-family:ui-monospace,monospace;font-weight:800;letter-spacing:2px;' +
       'text-align:center;text-transform:uppercase;border:3px solid #e4dccb;border-radius:12px;' +
@@ -235,15 +311,13 @@ export class MenuScene extends Phaser.Scene {
     row.style.cssText = 'display:flex;gap:10px;';
     const btn = document.createElement('button');
     btn.textContent = 'Go';
-    btn.style.cssText =
-      'font-size:16px;font-weight:800;color:#fffaf0;background:#58a05c;border:0;border-radius:10px;padding:10px 24px;';
+    btn.style.cssText = 'font-size:17px;font-weight:800;color:#fffaf0;background:#3f9d57;border:3px solid #2c2622;border-radius:14px;padding:10px 26px;';
     const cancel = document.createElement('button');
     cancel.textContent = 'Cancel';
-    cancel.style.cssText =
-      'font-size:16px;font-weight:700;color:#7a6f62;background:transparent;border:0;padding:10px 16px;';
+    cancel.style.cssText = 'font-size:16px;font-weight:700;color:#7a6f62;background:transparent;border:0;padding:10px 16px;';
     const done = (code?: string) => {
       host.remove();
-      if (code) onCode(code);
+      if (code !== undefined) onCode(code.trim());
     };
     btn.onclick = () => done(input.value);
     cancel.onclick = () => done();

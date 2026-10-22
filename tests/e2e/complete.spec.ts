@@ -1,89 +1,38 @@
 import { test, expect } from '@playwright/test';
+import { startLevel, sim } from './helpers';
 
-interface Snap {
-  state: string;
-  x: number;
-  y: number;
-  grounded: boolean;
-}
-
-const snap = (page: import('@playwright/test').Page) =>
-  page.evaluate((): Snap => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const scene = (window as any).__otf.scene.getScene('Game');
-    const body = scene?.player?.body;
-    return {
-      state: scene?.state ?? 'none',
-      x: scene?.player?.x ?? -1,
-      y: scene?.player?.y ?? -1,
-      grounded: body ? (body.blocked.down || body.touching.down) : false,
-    };
-  });
-
-test('scripted bot completes level 1-1 and unlocks 1-2', async ({ page }) => {
-  await page.goto('/');
-  await page.waitForSelector('canvas');
-  await page.waitForTimeout(1400);
-  await page.mouse.click(350, 280); // Play
-  await page.waitForTimeout(900);
-
-  // 1-1: spike at col 11 (~x 330–360), pit at cols 18–19 (x 540–600), door ~x 880.
-  // Bot: hold right; hop when grounded inside trigger windows; retries after deaths.
-  await page.keyboard.down('ArrowRight');
-  const deadline = Date.now() + 25000;
-  let done = false;
-  let lastJump = 0;
-  while (Date.now() < deadline && !done) {
-    const s = await snap(page);
-    if (s.state === 'complete') { done = true; break; }
-    if (s.state === 'playing' && s.grounded && Date.now() - lastJump > 900) {
-      const hop = async () => {
-        lastJump = Date.now();
-        await page.keyboard.down('Space');
-        await page.waitForTimeout(260);
-        await page.keyboard.up('Space');
-      };
-      if (s.x > 230 && s.x < 300) await hop();       // clear the spike
-      if (s.x > 470 && s.x < 540) await hop();       // clear the pit
-    }
-    await page.waitForTimeout(25);
-  }
-  await page.keyboard.up('ArrowRight');
-  expect(done, 'bot never completed 1-1').toBe(true);
-
-  const save = await page.evaluate(() => localStorage.getItem('otf.save.v1'));
-  const parsed = JSON.parse(save!);
-  expect(parsed.levels['1-1'].completed).toBe(true);
-  expect(parsed.unlockedThrough).toBeGreaterThanOrEqual(1);
+test('completing 1-1 through real input persists progress and unlocks 1-2', async ({ page }) => {
+  await startLevel(page);
+  const r = await sim(page, 0, 'R45 RJ14 R40 RJ14 R20 RJ14 R20 RJ14 R80');
+  expect(r.completed).toBe(true);
+  const save = JSON.parse((await page.evaluate(() => localStorage.getItem('otf.save.v1')))!);
+  expect(save.levels['1-1'].completed).toBe(true);
+  expect(save.unlockedThrough).toBeGreaterThanOrEqual(1);
 });
 
-test('death → respawn restores player control quickly', async ({ page }) => {
-  await page.goto('/');
-  await page.waitForSelector('canvas');
-  await page.waitForTimeout(1400);
-  await page.mouse.click(350, 280);
-  await page.waitForTimeout(900);
-
-  // Walk right into the spike and measure death→control on the GAME clock
-  // (scene.time.now) — wall-clock flakes under parallel-worker CPU stalls.
-  await page.keyboard.down('ArrowRight');
-  let died = 0;
-  let controlBack = 0;
-  const deadline = Date.now() + 15000;
-  while (Date.now() < deadline) {
-    const s = await page.evaluate(() => {
-      const sc = (window as any).__otf.scene.getScene('Game') as any;
-      return { state: sc.state, x: sc.player.x, now: sc.time.now };
-    });
-    if (s.state === 'dying' && !died) died = s.now;
-    if (died && s.state === 'playing' && s.x < 200) { controlBack = s.now; break; }
-    await page.waitForTimeout(15);
-  }
-  await page.keyboard.up('ArrowRight');
-  expect(died).toBeGreaterThan(0);
-  expect(controlBack).toBeGreaterThan(0);
-  // Game-clock bound catches real regressions; under 4-worker CPU contention
-  // rAF quantization alone can add ~600ms — precise numbers come from
-  // perf.spec run serially (--workers=1, headed).
-  expect(controlBack - died).toBeLessThan(2000);
+test('death → control returns within 0.7 s of game time (p95 target)', async ({ page }) => {
+  await startLevel(page);
+  // Walk into the 1-3 teeth repeatedly; measure frames from death to the
+  // respawned player moving again, on the deterministic 60 Hz clock.
+  const frames = await page.evaluate(() => {
+    const sim = (window as any).__otfSim;
+    sim.run(2, '_1', { settle: false, tail: 0 });
+    const s = (window as any).__otf.scene.getScene('Game') as any;
+    const out: number[] = [];
+    let deadAt = -1;
+    for (let f = 0; f < 1200 && out.length < 10; f++) {
+      s.ctl.scripted = { dir: 1, jumpDown: false, jumpHeld: false };
+      sim.step();
+      if (s.state === 'dying' && deadAt < 0) deadAt = f;
+      if (deadAt >= 0 && s.state === 'playing') {
+        out.push(f - deadAt);
+        deadAt = -1;
+      }
+    }
+    return out;
+  });
+  expect(frames.length).toBeGreaterThanOrEqual(5);
+  const sorted = [...frames].sort((a, b) => a - b);
+  const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1];
+  expect(p95 / 60).toBeLessThan(0.7);
 });

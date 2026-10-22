@@ -11,18 +11,17 @@ test('one-way platforms: pass-through up, solid down, flip-aware', async ({ page
   await page.waitForSelector('canvas');
   await page.waitForTimeout(1500);
   await page.evaluate(() => (window as any).__otf.scene.start('Game', { index: 4 }));
-  await page.waitForTimeout(800);
+  await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game')?.state === 'playing');
 
-  // launch straight up from under the first plank (row13, cols 9-10 →
-  // x 270..330, stand plane 390). Placed mid-air in the ghost gap —
-  // the rise must pass THROUGH the plank (apex ≈336 < 390).
+  // 1-5: planks at row 11 (cols 11-14 → x 330..450, stand plane y=330).
+  // Launch straight up from the floor beneath; the rise must pass THROUGH.
   await page.evaluate(() => {
     const s = (window as any).__otf.scene.getScene('Game') as any;
-    s.player.setPosition(300, 450);
-    s.player.body.setVelocity(0, -640);
+    s.player.body.reset(390, 437);
+    s.player.body.setVelocity(0, -820);
   });
   const crossed = await page.waitForFunction(
-    () => (window as any).__otf.scene.getScene('Game').player.y < 355,
+    () => (window as any).__otf.scene.getScene('Game').player.y < 300,
     { timeout: 2500 },
   ).then(() => true).catch(() => false);
   expect(crossed, 'player should pass through the plank going up').toBe(true);
@@ -32,7 +31,7 @@ test('one-way platforms: pass-through up, solid down, flip-aware', async ({ page
     () => {
       const s = (window as any).__otf.scene.getScene('Game') as any;
       const p = s.player;
-      return p.y < 385 && p.y > 355 && p.grounded;
+      return p.y < 322 && p.y > 312 && p.grounded;
     },
     { timeout: 3000 },
   ).then(() => true).catch(() => false);

@@ -123,6 +123,7 @@ export abstract class Trap {
       this.pendingAt = -1;
       this.state = 'active';
       this.fire();
+      this.speak();
     }
     if (this.state === 'active' || this.state === 'armed' || this.state === 'triggered') this.onUpdate?.(dtMs);
   }
@@ -175,6 +176,17 @@ export abstract class Trap {
     }
   }
 
+  private spoke = false;
+
+  /** Optional authored one-liner (`params.say`) the first time a trap fires per attempt. */
+  private speak(): void {
+    const line = this.def.params?.say;
+    if (!line || this.spoke || !this.cells.length) return;
+    this.spoke = true;
+    const r = cellsRect(this.cells);
+    this.ctx.quip(line, r.x + r.w / 2, r.y - 36);
+  }
+
   /** Where proximity is measured from. Moving traps (shy doors) override. */
   protected proximityAnchor(): { x: number; y: number } | null {
     if (!this.cells.length) return null;
@@ -204,6 +216,7 @@ export abstract class Trap {
   }
 
   reset(): void {
+    this.spoke = false;
     this.simTimers = [];
     this.elapsed = 0;
     this.pendingAt = -1;

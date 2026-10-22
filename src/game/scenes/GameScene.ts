@@ -223,8 +223,11 @@ export class GameScene extends Phaser.Scene {
     } else {
       const t = this.add.text(0, 0, this.def.name, { ...TXT.h2, fontSize: '26px', color: '#fffaf0', stroke: '#2c2622', strokeThickness: 7 }).setOrigin(0.5);
       c.add(t);
+      if (this.def.quip) {
+        c.add(this.add.text(0, 28, this.def.quip, { ...TXT.small, fontSize: '15px', color: '#fffaf0', stroke: '#2c2622', strokeThickness: 5 }).setOrigin(0.5));
+      }
     }
-    const hold = firstOfChapter ? MOTION.chapter.cardMs : 900;
+    const hold = firstOfChapter ? MOTION.chapter.cardMs : this.def.quip ? 1500 : 900;
     this.tweens.add({ targets: c, alpha: 1, y: c.y + 6, duration: 180, ease: 'Quad.easeOut' });
     this.tweens.add({ targets: c, alpha: 0, y: c.y - 10, delay: hold, duration: 260, onComplete: () => c.destroy() });
 

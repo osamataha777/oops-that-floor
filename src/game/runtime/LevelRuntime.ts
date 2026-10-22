@@ -95,6 +95,12 @@ export class LevelRuntime {
     };
 
     this.buildStatics();
+    // A door placed under a ceiling (ground above, air below) hangs upside-down.
+    const gc = Math.round((this.parsed.goal.x - 2) / TILE);
+    const gr = Math.round((this.parsed.goal.y - 2) / TILE) + 1;
+    this.goalStartsFlipped = def.map[gr - 1]?.[gc] === '#' && def.map[gr + 1]?.[gc] !== '#';
+    if (this.goalStartsFlipped) this.parsed.goal.y = gr * TILE;
+    this.goalFlipped = this.goalStartsFlipped;
     this.goalHome = { ...this.parsed.goal };
     this.goalRect = { ...this.parsed.goal };
     this.drawGoal();
@@ -249,6 +255,7 @@ export class LevelRuntime {
   }
 
   private goalFlipped = false;
+  private goalStartsFlipped = false;
 
   /** Door art is drawn around its centre so it can hang upside-down. */
   private drawGoal(): void {
@@ -357,7 +364,7 @@ export class LevelRuntime {
     this.attempt += 1;
     this.ctx.attempt = this.attempt;
     this.goalRect = { ...this.goalHome };
-    this.goalFlipped = false;
+    this.goalFlipped = this.goalStartsFlipped;
     this.stopGoalTween();
     this.goalG.setAngle(0).setScale(1);
     this.drawGoal();

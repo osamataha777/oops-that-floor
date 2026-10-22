@@ -190,10 +190,10 @@ function paint(g: G, ch: number, t: ChapterTheme, w: number): void {
  * few owned ambient animations. Returns nothing to manage — every object is
  * scene-owned and dies with the scene.
  */
-export function paintBackdrop(scene: Phaser.Scene, ch: number, t: ChapterTheme, reduced: boolean): void {
+export function paintBackdrop(scene: Phaser.Scene, ch: number, t: ChapterTheme, reduced: boolean, left = -VIEW.ox): void {
   const w = VIEW.w;
-  bakeImage(scene, `backdrop-${ch}-${w}`, -VIEW.ox, 0, w, GAME_HEIGHT, (g) => paint(g, ch, t, w), { reuse: true }).setDepth(-10);
-  const L = -VIEW.ox;
+  bakeImage(scene, `backdrop-${ch}-${w}`, left, 0, w, GAME_HEIGHT, (g) => paint(g, ch, t, w), { reuse: true }).setDepth(-10);
+  const L = left;
   if (ch === 2) {
     // machinery in the haze (static under reduced motion)
     for (const [gx, gy, r, dir] of [[w * 0.18, 150, 70, 1], [w * 0.78, 110, 52, -1]] as const) {

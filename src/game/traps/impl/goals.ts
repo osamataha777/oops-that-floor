@@ -107,7 +107,7 @@ export class ShyGoalTrap extends Trap {
   protected restore(): void {
     this.hops = 0;
     this.cooldownUntil = 0;
-    const g = this.parsed.goal;
+    const g = this.parsed.goal; // runtime has already restored orientation
     this.ctx.moveGoal(g.x, g.y, true);
   }
 }

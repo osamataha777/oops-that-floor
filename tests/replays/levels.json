@@ -189,5 +189,53 @@
   "deaths": 0,
   "naive": "R300",
   "beat": "final exam"
+ },
+ "5-1": {
+  "program": "R32 RJ16 RG R0 RJ16 RG R30 L20 LJ14 LG L10 LJ14 LG L60",
+  "deaths": 0,
+  "naive": "R400",
+  "beat": "1-1 again, by moonlight"
+ },
+ "5-2": {
+  "program": "R20 L8 _12 R24 L4 _0 R32 L4 _12 R100",
+  "deaths": 0,
+  "naive": "R400",
+  "beat": "bait three impatient pistons"
+ },
+ "5-3": {
+  "program": "R6 RJ10 R34 RJ16 R40 RJ10 R60",
+  "deaths": 0,
+  "naive": "R400",
+  "beat": "a borrowed flip and a hanging door"
+ },
+ "5-4": {
+  "program": "R80 W R26 RJ16 RG R0 RJ16 R60",
+  "deaths": 1,
+  "naive": "R400",
+  "beat": "the floor pities you after one try"
+ },
+ "5-5": {
+  "program": "R30 RJ14 R0 _30 R10 RJ10 RG R4 RJ14 RG R0 RJ10 R60",
+  "deaths": 0,
+  "naive": "R400",
+  "beat": "every chapter sends a representative"
+ },
+ "5-6": {
+  "program": "R30 RJ12 R4 RJ12 R5 RJ16 R100",
+  "deaths": 0,
+  "naive": "R400",
+  "beat": "the real door bolts behind three props"
+ },
+ "5-7": {
+  "program": "R32 RJ12 R0 _0 R75 RJ12 R80",
+  "deaths": 0,
+  "naive": "R400",
+  "beat": "everything at once"
+ },
+ "5-8": {
+  "program": "R10 RJ16 R5 _24 R50 _70 R0 RJ10 RG R0 RJ10 RG R0 RJ14 RG R0 RJ10 RG R10 _0 L35 LJ14 L25 LJ8 L120",
+  "deaths": 0,
+  "naive": "R400",
+  "beat": "false exit, self-building stairs, ceiling chase"
  }
 }
