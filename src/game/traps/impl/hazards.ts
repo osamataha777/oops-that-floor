@@ -99,7 +99,7 @@ export class HiddenSpikesTrap extends Trap {
       this.ctx.scene.tweens.killTweensOf(it.g);
       this.ctx.scene.tweens.add({
         targets: it.g,
-        y: it.cell.y + (on ? 6 : SPIKE_SUNK),
+        y: it.cell.y + (on ? -3 : SPIKE_SUNK), // tips poke ~4 px above the surface
         alpha: on ? 0.85 : 0,
         duration: 90,
         ease: 'Sine.easeOut',

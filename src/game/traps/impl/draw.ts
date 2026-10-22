@@ -80,14 +80,19 @@ export function drawCell(g: G, x: number, y: number, e: Edges, t: ChapterTheme, 
       break;
     }
     case 'metal': {
-      g.lineStyle(1, t.detail, 0.8);
-      g.strokeRect(x + il + 3, y + 3, s - il - ir - 6, s - ib - 6);
+      // big riveted plates spanning 2×2 cells, not a per-cell grid
+      const pc = Math.round(wx / s) % 2 === 0;
+      const pr = Math.round(wy / s) % 2 === 0;
+      g.fillStyle(t.detail, 0.35);
+      if (pc) g.fillRect(x, y, 1.5, s - ib);
+      if (pr && !e.top) g.fillRect(x + il, y, s - il - ir, 1.5);
       g.fillStyle(t.detail, 1);
-      for (const [cx, cy] of [[x + 6, y + 6], [x + s - 6, y + 6], [x + 6, y + s - 8], [x + s - 6, y + s - 8]]) {
-        g.fillCircle(cx, cy, 1.8);
+      if (pc && pr) g.fillCircle(x + 6, y + (e.top ? 11 : 6), 1.8);
+      if (!pc && !pr) g.fillCircle(x + s - 6, y + s - 8, 1.8);
+      if (h % 7 === 0) {
+        // the odd bolted patch
+        g.fillStyle(t.solidDark, 0.25).fillRoundedRect(x + 8, y + 12, 12, 9, 2);
       }
-      g.fillStyle(0xffffff, 0.25);
-      g.fillCircle(x + 5.5, y + 5.5, 0.8);
       if (e.top) {
         g.fillStyle(t.solidTop, 1);
         g.fillRoundedRect(x, y, s, 6, { tl: rad.tl ? R : 0, tr: rad.tr ? R : 0, bl: 0, br: 0 });
