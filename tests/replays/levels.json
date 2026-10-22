@@ -215,7 +215,7 @@
   "beat": "the floor pities you after one try"
  },
  "5-5": {
-  "program": "R30 RJ14 R0 _30 R10 RJ10 RG R4 RJ14 RG R0 RJ10 R60",
+  "program": "R24 RJ12 R8 _G _15 R15 RJ10 RG R4 RJ14 RG R0 RJ14 R60",
   "deaths": 0,
   "naive": "R400",
   "beat": "every chapter sends a representative"
