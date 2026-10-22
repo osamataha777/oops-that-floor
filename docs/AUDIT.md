@@ -1,3 +1,5 @@
+> **Superseded** by `FINAL_OVERHAUL_AUDIT.md` (V2.1 historical record).
+
 # Product Audit — baseline (pre-overhaul)
 
 Conducted on `main` @ `b73525c` by playing the live build (headed Chromium captures: menu, level select, 1-1 gameplay, death→respawn) and reading every core file.

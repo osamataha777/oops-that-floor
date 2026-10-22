@@ -1,50 +1,71 @@
-# Release Checklist
+# Release Checklist — v1.0 release candidate
 
-Status of every requirement, verified against this repo. ✅ = verified by a build/test run in this environment. ⚠️ = implemented, needs device/store verification. ⛔ = blocked on external accounts/credentials.
+✅ verified here by a build/test run · ⚠️ implemented, needs device or people · ⛔ blocked on accounts/credentials
 
-## Verified in this environment
+## Gate A — Functional correctness
 
-- [x] Game boots; menu → level select → gameplay → pause/death/restart flows (Playwright)
-- [x] 40 original levels, all validated (`npm run validate` — 0 fatal, 2 intentional warnings)
-- [x] 14 trap types implemented and used in shipped content
-- [x] Sequential unlocks, attempts, settings persist (unit + integration tests)
-- [x] Instant restart path exists (`LevelRuntime.reset`, no scene reload)
-- [x] Coyote time, jump buffer, variable jump height (unit tested)
-- [x] Challenge codes deterministic + checksummed (unit tested)
-- [x] Achievements fire in simulated playthrough (integration test)
-- [x] Share-card renderer exists and produces a PNG locally
-- [x] Web build passes (`npm run build`)
-- [x] Android debug APK compiles (`assembleDebug` — 4.5 MB)
-- [x] iOS project compiles unsigned (`xcodebuild CODE_SIGNING_ALLOWED=NO`)
-- [x] Landscape lock set on both platforms; zero Android permissions
-- [x] No third-party assets; procedural art/audio only
-- [x] No network calls / accounts / ads / analytics
+- ✅ All gameplay loops: menu → level select → play → death/instant respawn → completion → next level → finale (smoke + replay specs)
+- ✅ 40 / 40 levels load and complete through real input; naive approaches fail (`levels.spec.ts`)
+- ✅ State machine: explicit transition table; replays assert zero illegal transitions
+- ✅ Progress, attempts, achievements and settings persist (unit + `complete.spec.ts`); corrupt saves fall back safely (unit)
+- ✅ Offline: no network calls; all art/audio generated at runtime
+- ✅ Settings and sharing paths implemented with graceful fallbacks (share → copy/“unavailable” toast)
+- ✅ Android debug APK + release AAB build; iOS simulator Debug + Release builds
+- ⚠️ Share sheet on real Android/iOS (implemented via Capacitor Share + Filesystem; not exercised on hardware)
 
-## Needs real-device verification before store submission
+## Gate B — Gameplay quality
 
-- [ ] ⚠️ Playtest all 40 levels end-to-end on a phone — solvability BFS proves a path exists; fairness/timing still needs humans
-- [ ] ⚠️ Touch controls: multitouch feel, button placement/scaling on small + large screens
-- [x] iOS native shell: app installs + launches on iPhone 17 Pro simulator, landscape menu verified
-- [ ] ⚠️ Safe-area padding on notched devices (adapter implemented, untested on hardware)
-- [ ] ⚠️ Haptics intensity/appropriateness on Android + iOS
-- [ ] ⚠️ 60 FPS on a mid-range device (desktop Chrome measured 60; mobile TBD)
-- [ ] ⚠️ Background/foreground resume; audio interruption behavior
-- [ ] ⚠️ Offline first-launch on installed builds (Airplane-mode cold start)
-- [ ] ⚠️ Long-session soak: 200+ deaths, no leak/jank
+- ✅ First eight levels reworked as the vertical slice (harmless first betrayal, early signature moment, first-play pad hints)
+- ✅ Movement envelope measured and regression-tested (jump 109 px, tap hop 47–61 px, run jump 232 px, 0.13 s to top speed)
+- ✅ Death → control 300 ms; deaths never require dismissing a dialog
+- ✅ Every level has a distinct beat (see `LEVEL_AUDIT.md`)
+- ⚠️ Fairness for first-time players — **human playtest required** (protocol in `PLAYTEST_PROTOCOL.md`; flagged levels in LEVEL_AUDIT)
 
-## External blockers (store submission)
+## Gate C — Presentation
 
-- [ ] ⛔ Google Play + Apple Developer accounts
-- [ ] ⛔ Android release keystore → `keystore.properties` + `./gradlew bundleRelease`
-- [ ] ⛔ iOS distribution certificate/provisioning → Xcode Archive → App Store Connect
-- [x] App icon set — original procedurally-drawn `icon-1024.png` deployed to Android mipmap densities (incl. adaptive foreground) and iOS `AppIcon`
-- [ ] ⛔ Store listing assets: screenshots, feature graphic, description, privacy label
-- [ ] ⛔ Formal trademark check on "Oops! That Floor!" (alternatives ready)
-- [ ] ⛔ App-store age rating / content questionnaires
-- [ ] ⛔ Optional: `apple-app-site-association` + Android App Links if challenge deep links ship
+- ✅ Original mascot rig (Pip) with expressions, secondary motion, contextual reactions
+- ✅ Five art-directed chapters; materials, backdrops, ambient motion; device-resolution rendering
+- ✅ Consistent UI kit (tactile buttons, panels, toasts, icon buttons); menu, level select, settings, pause, completion ribbon
+- ✅ FeedbackManager: tuned sound/haptic/shake per event; chapter music styles
+- ⚠️ Typography uses the platform rounded font; Android shows its default sans — consider bundling an OFL rounded font
+- ⚠️ Haptic comfort — needs hardware
 
-## Known limitations
+## Gate D — Release confidence
 
-- `npm audit --omit=dev` is clean (0 production vulnerabilities); 3 moderate findings exist in dev-only tooling — re-check on dependency updates.
-- Playwright E2E covers boot/navigation smoke only; per-level solvability is asserted structurally (validator + jump sanity) but needs human playtesting.
-- Bundle is ~1.3 MB JS (~350 KB gzipped) — dominated by Phaser; acceptable for install size but consider code-splitting scenes if startup time matters on low-end devices.
+- ✅ Regression: typecheck, 66 unit tests, 63 E2E (1 opt-in), 40 replays
+- ✅ Performance measured (`docs/perf-results.json`); no leak over 200 deaths / 40 loads
+- ✅ Accessibility essentials: reduced motion, screen-shake toggle, gentle mode (softer haptics/shake), high-contrast hazard outlines, haptics toggle, adjustable pad size/opacity/spacing; hazards distinguishable by shape not only colour; all audio cues have visual counterparts
+- ✅ Asset licensing: no third-party assets (`ASSET_LICENSES.md`); Phaser + Capacitor MIT
+- ✅ Privacy: no accounts, ads, analytics, tracking or permissions; iOS `PrivacyInfo.xcprivacy` (UserDefaults CA92.1); see `PRIVACY_POLICY.md`
+- ⚠️ Physical-device run: 60 fps on a mid-range Android, iPhone safe areas, audio interruption, background/foreground
+- ⚠️ Optional: gate `window.__otf*` debug handles behind a build flag
+
+## Platform specifics
+
+**Android** — targetSdk/compileSdk 36 (meets current Play target-API rules), minSdk 24, landscape lock, immersive edge-to-edge with cutout support, keep-screen-on, hardware Back → pause/resume/leave, zero permissions.
+- ⛔ Upload keystore + `signingConfig` → signed `bundleRelease`
+- ⚠️ Play pre-launch report on real devices
+
+**iOS** — landscape only, status bar hidden, full screen, privacy manifest, audio-interruption resume.
+- ⛔ Apple Developer team, signing, `xcodebuild archive` → App Store Connect
+- ⚠️ TestFlight on a notched iPhone
+
+## Store submission
+
+- ⛔ Developer accounts (Google Play, Apple)
+- ✅ Listing copy draft: `STORE_LISTING.md`
+- ✅ Screenshots source: `docs/shots/after/` (re-capture at store sizes)
+- ⛔ Age-rating questionnaires (expected: Everyone / 4+ — cartoon peril, no violence beyond slapstick)
+- ⛔ Trademark check on the name
+
+## Build instructions
+
+```bash
+npm ci
+npm run build            # web bundle → dist/
+npx cap sync             # copy into native shells
+# Android (needs JDK 21, e.g. Android Studio's JBR)
+cd android && ./gradlew assembleDebug bundleRelease
+# iOS
+xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' archive
+```

@@ -20,7 +20,10 @@ Open in a browser. Use ←/→ or A/D to move, Space/W/↑ to jump, Esc to pause
 | Install dependencies | `npm install` |
 | Run locally (dev server) | `npm run dev` |
 | Run unit + integration tests | `npm test` (alias: `npx vitest run`) |
-| Run browser E2E smoke tests | `npm run test:e2e` (needs `npx playwright install chromium` once) |
+| Run browser E2E (incl. all-40-levels replay proof) | `npm run test:e2e` (needs `npx playwright install chromium` once) |
+| Prove every level via input replay | `npm run build && npx vite preview --port 4173 &` then `node scripts/verify-levels.mjs` |
+| Trace / search / jitter-test a route | `node scripts/trace.mjs 1-4 "R140 RJ20 …"` · `scripts/search.mjs` · `scripts/forgiveness.mjs` |
+| Screenshots / recordings / perf | `scripts/shoot.mjs` · `scripts/record.mjs` · `scripts/perf.mjs --headed` |
 | Validate all 40 levels | `npm run validate:levels` |
 | Build web assets | `npm run build` (outputs `dist/`) |
 | Preview production build | `npm run preview` |

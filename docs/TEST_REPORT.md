@@ -1,65 +1,75 @@
 # Test Report
 
-Environment: macOS (Apple Silicon), Node 26, Chrome via Playwright, Android SDK + JBR-21, Xcode 27.1.
+Measured on 2026-10-22 against the release-candidate commit on
+`feat/gameplay-experience-overhaul-v2` (macOS, Apple silicon, Node 26,
+Chromium via Playwright 1.55). Everything below was run, not inferred.
+This replaces the V2.1 report, whose claims predated the current tests.
 
-## Automated results
+## Summary
 
-| Suite | Command | Result |
-| --- | --- | --- |
-| Typecheck | `npx tsc --noEmit` | ✅ 0 errors |
-| Unit + integration (Vitest) | `npm test` | ✅ 57 tests, 6 files |
-| Level validator | `npm run validate:levels` | ✅ 40 levels, **0 warnings** (3-2/3-8 goal-head carved in V2.1) |
-| Solvability BFS | (part of validator + `levels.test.ts`) | ✅ all 40 have a plausible path |
-| Web build | `npm run build` | ✅ `dist/` ~1.3 MB JS (~352 KB gzip) |
-| Browser E2E | `npm run test:e2e` | ✅ 21/21 — smoke, bot 1-1, pause, one-way, multitouch (2), states (5), world-remembers, level beats (6), perf |
-| Android debug | `./gradlew assembleDebug` | ✅ BUILD SUCCESSFUL (JDK 21, V2.1 re-verified) |
-| iOS build (unsigned) | `xcodebuild … iphonesimulator` | ✅ BUILD SUCCEEDED (Xcode 27.1, V2.1 re-verified) |
-| iOS Simulator run | `xcodebuild … iphonesimulator` + `simctl install/launch` | ✅ game boots to menu in landscape on iPhone 17 Pro sim (screenshot-verified, earlier pass) |
+| Layer | Command | Result |
+|---|---|---|
+| Typecheck | `npm run typecheck` | ✅ clean |
+| Unit + integration | `npm test` | ✅ 66 / 66 (7 files) |
+| Level validation | `npm run validate:levels` | ✅ 40 valid, 0 fatal (9 BFS warnings — see below) |
+| Input-replay proof, all levels | `node scripts/verify-levels.mjs` | ✅ 40 / 40 complete; 39 / 39 naive runs fail (3-1 is an honest opener) |
+| E2E (Playwright) | `npx playwright test --workers=2` | ✅ 62 passed, 1 skipped (wall-clock perf probe, opt-in `PERF=1`) |
+| Performance / soak | `node scripts/perf.mjs --headed` | see below; raw data `docs/perf-results.json` |
+| Timing tolerance | `node scripts/forgiveness.mjs 60 3` | see `docs/forgiveness.json` and LEVEL_AUDIT |
+| Android | `./gradlew assembleDebug bundleRelease` (JDK 21) | ✅ APK 5.4 MB, AAB 3.5 MB (unsigned); APK installs + boots on API 37 emulator |
+| iOS | `xcodebuild … -sdk iphonesimulator` Debug + Release | ✅ builds; runs on iPhone 17 Pro simulator (iOS 26.5) |
 
-## Coverage map
+## What the E2E suite covers
 
-**Unit** (`tests/unit/`):
-- `movement.test.ts` — accel/decel, turnaround boost, fall clamp, variable-jump cut (both gravity signs), coyote-window expiry, buffer landing fire, single-consume.
-- `save.test.ts` — save/settings decode: corruption recovery, range clamps, malformed-record dropping, round-trips.
-- `progress` inside `save.test.ts` — attempts, unlock-on-complete, first-try detection, chapter-complete event, completion counting.
-- `challenge.test.ts` — codec round-trips, determinism, checksum tamper rejection, malformed input, level-range enforcement, share text.
-- `levels.test.ts` — registry integrity (40 = 5×8, unique ids, ≥12 trap types), zero fatal validation issues, parser extraction, run-merging, marker collection, and **trap-aware solvability** — a BFS with the real jump envelope that verifies a spawn→goal path exists through movers, ghosts, lethal cells, and gravity flips.
-- `traps.test.ts` — trap-type surface (14 types), geometry helpers.
+| Spec | What it proves |
+|---|---|
+| `levels.spec.ts` (40 tests) | Each level completes through real input on the deterministic sim, with the expected death count and zero illegal state transitions; each naive approach fails. |
+| `mechanics.spec.ts` | 3-3 changes after a death; 5-4 pity pillar; 5-8 fake-exit → stair chain in order and the door's ceiling hop; 1-7 wall retracts; 1-6 swept crush; identical input → identical trace. |
+| `multitouch.spec.ts` | Real two-finger CDP touch (hold right + jump); router ownership, slide hand-off, cancel, multi-press, dead zone, missed-up recovery, **up-outside release, no dir→jump slide, held direction survives respawn, pause releases pads and blocks overlay taps**. |
+| `mobile.spec.ts` | Phone-aspect view widens; rendered pads drive movement and jump. |
+| `smoke.spec.ts` | Real clicks: menu Play → 1-1; Levels → tile → game; back button; HUD pause → Resume; settings toggle persists. |
+| `states.spec.ts` | Pause ignored while dying; manual restart mid-death; pause/resume; challenge payload. |
+| `oneway.spec.ts` | One-way plank: pass up, land down, faces swap under flipped gravity. |
+| `complete.spec.ts` | Completing 1-1 by input persists progress and unlocks 1-2; death→control p95 < 0.7 s. |
 
-**Integration** (`tests/integration/flow.test.ts`): simulated full playthrough — all 40 levels unlock sequentially, 80 deaths recorded, achievements (`first-blood`, `persistent`, `chapter-1`, `all-clear`) fire, save survives an encode→decode "app restart", challenge codes resolve to real levels.
+Unit tests cover movement math, jump assist, save/settings decode &
+migration, challenge codes, achievements, level registry/parse/validation,
+trap registry, and the FeedbackManager (routing, per-event debounce, global
+haptic gap with priority override, haptics toggle, gentle mode, reduced
+motion, shake detach, every profile maps to a real synth patch).
 
-**E2E** (`tests/e2e/`), 21 tests against the production build:
-- `smoke.spec` — boot→play, level select, pause/resume.
-- `complete.spec` — scripted bot completes 1-1 & unlocks 1-2 (real input); death→respawn latency on the game clock.
-- `oneway.spec` — one-way plank: pass-through up, solid landing, gravity-flip face swap. Caught a real level bug (1-5 unreachable).
-- `worldremembers.spec` — 5-4 verified live across attempts: try 1 spikes armed/bridge dormant → try 2 bridge crumbles on touch.
-- `states.spec` — pause ignored while dying, manual restart during death anim, pause→resume, challenge payload → Game scene.
-- `multitouch.spec` — **real two-finger CDP touch** (right+jump simultaneously, verified the player both moves and jumps), plus synthetic-pointer router: ownership, slide handoff, cancel, multi-press, dead zone, missed-pointerup recovery.
-- `levels-v21.spec` — the six re-authored beats played live: 3-4 wrong-button brick, 4-4 door→bridge chain, 3-7 adaptation across attempts, 5-6 door-bait death, 5-1 sprint+sting, 4-7 ghost-step fall.
-- `perf.spec` — measurements below (run serially / headed for honest numbers; under parallel-worker contention it reports but skips timing budgets, since rAF is CPU-starved and the numbers aren't device-representative).
+**Why replays instead of real-time bots:** headless Chromium renders this
+game at ~5 fps, so real-time bots time out or drift. The replay harness
+steps the real game at an exact 60 Hz, which also makes every level proof
+deterministic and CI-stable. Real-time input is still covered by the
+touch/mouse specs and by real-time headed recordings
+(`docs/shots/after/*.webm`, which complete 1-4, 3-3 and 5-8).
 
-## Manual verification (screenshots)
+**BFS warnings:** the coarse structural solver cannot model fall-block
+stairs, retracting walls, springs or timed flips, so it reports "no path"
+for 1-6, 1-7, 2-6, 3-2, 3-8, 4-6, 4-8, 5-4, 5-8. All nine are proven by
+input replay; the unit test requires every level to have a replay *or* a
+BFS path.
 
-Verified visually via headed-Chromium captures: menu (title, buttons, character), level select (chapter headers, lock/completion states), gameplay (tiles, spikes, goal door, HUD chips), and the death loop — stepping on the collapse trap in `1-1` produced the gag + quip ("★ Floor 1, You 0"), death counter incremented, and the player respawned.
+## Performance (desktop, headed Chromium, 2.5× render resolution)
 
-## Performance measurement (V2.1, `perf.spec.ts` — headed Chromium, Apple Silicon)
+| Metric | Result |
+|---|---|
+| Live play | 60.1 fps; p95 frame interval 17.7 ms (vsync-bound) |
+| Full frame incl. WebGL render | p50 2.5 ms · p95 3.0 ms · p99 3.5 ms |
+| Game logic per frame | 0.017–0.051 ms |
+| Death → control | 300 ms (p50 and p95, game clock) |
+| 200 deaths in one visit | heap +0.37 MB (13.16 → 13.53); physics bodies 24 → 24 |
+| 40 consecutive level loads | heap +0.40 MB; level load + 30 frames p50 15 ms |
+| Cold start to interactive menu | 841 ms (local preview) |
 
-| Metric | Target | Measured |
-| --- | --- | --- |
-| Cold nav → menu ready | <3 s | **868 ms** |
-| Level start → playing | <1.5 s | **612 ms** |
-| Frame time p50 / p95 / p99 | 16.7 ms | **16.7 / 17.2 / 17.6 ms (60.1 FPS)** |
-| Restart latency p50 / p95 (game clock, 20 deaths) | <700 ms | **151 / 333 ms** |
-| JS heap across 12 level reloads | no growth | **−27.7 MB (GC — no leak)** |
+Not measured: frame rate on physical phones. These numbers bound CPU cost
+and rule out leaks; they do not prove mid-range Android performance.
 
-Headless-CI reference only: ~23 fps under the software rasterizer — not
-device-representative; headed numbers above are the honest ones on this machine.
+## Not verified (needs hardware or people)
 
-## Validation gaps (honest)
-
-- **No physical-device run** — touch feel, haptics, safe areas, thermal/perf on real hardware unverified.
-- **Solvability is now semi-formal** — the trap-aware BFS proves a path exists within the real jump envelope (it caught and fixed real authoring issues during development), but it doesn't model timing fairness, crusher cycles, or coyote-tight windows. Human playtesting of all 40 levels remains on `RELEASE_CHECKLIST.md`.
-- **E2E input-completes 1-1** (bot) and plays through the redesigned beats of 9 levels; the remaining 31 are BFS-solved + rule-validated, not end-to-end input runs (see `docs/LEVEL_AUDIT.md`).
-- **V2.1 spike-lethality fix changed effective difficulty** — ~10 levels now deliver their designed stings for the first time; deaths-per-level tuning needs real playtest data before store submission.
-- Per-level validation status is tracked in `docs/LEVEL_AUDIT.md`.
-- `npm audit --omit=dev`: **0 vulnerabilities** in production deps. The 3 moderate findings are dev-toolchain only (esbuild/vite advisory); they do not ship to builds but should be re-checked on dependency updates.
+- Haptic intensity/comfort on Android and iOS hardware (browser tests only
+  prove event routing — the `FeedbackManager` log).
+- Touch latency, pad reach and thermals on physical phones.
+- Real audio interruptions (calls, Siri) and background/foreground on device.
+- Human playtest — no player data exists; nothing in this repo claims any.

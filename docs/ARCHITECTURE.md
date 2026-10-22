@@ -13,7 +13,7 @@ Phaser 3.90 · TypeScript · Vite 8 · Vitest · Playwright · Capacitor 8 (andr
 │ runtime/  LevelRuntime                        │  instantiates a level in a scene, owns
 │ entities/ Player                              │  trap instances + reset lifecycle
 ├──────────────────────────────────────────────┤
-│ traps/    TrapBase + 14 impls, registry       │  lifecycle: dormant→armed→triggered→active
+│ traps/    TrapBase + 15 impls, registry       │  lifecycle: dormant→armed→triggered→active
 │ levels/   DSL parser + validator + 40 defs    │  data-driven, scene-agnostic
 ├──────────────────────────────────────────────┤
 │ physics/  movement math                       │  pure TS — no Phaser imports
@@ -28,60 +28,40 @@ The hard rule: **game logic never imports Capacitor; services never import Phase
 
 `BootScene` (procedural textures, audio unlock) → `MenuScene` ↔ `LevelSelectScene` → `GameScene` (all 40 levels, parameterized by `levelIndex`). Pause, settings, completion, and death are *overlays inside GameScene*, not scenes — restart never pays a scene-boot cost.
 
+## Determinism & time
+
+- **Trap sim clock** — every trap owns `elapsed`, advanced only by `update()`; `after()` schedules on it. Pause, the death freeze and the intro stop trap time for free, and reset cancels everything.
+- **Tweens on the game clock** — `core/clock.ts` drives every TweenManager from the loop delta (Phaser's default is `Date.now()`).
+- **Replay harness** — `src/dev/sim.ts` (`window.__otfSim.run(levelIndex, program)`) sleeps the RAF loop and calls `game.headlessStep` at exactly 60 Hz, feeding `InputManager.scripted`. Same input → same trace. Used by `tests/e2e/levels.spec.ts`, `scripts/verify-levels.mjs`, `search.mjs`, `forgiveness.mjs`, `shoot.mjs`.
+
+## GameScene state machine
+
+`intro → playing ⇄ paused`, `playing → dying → playing`, `playing → complete → exiting`, any → `exiting`. Transitions go through `go(next)` against a table; illegal ones are rejected and counted (`illegalTransitions`, asserted 0 by every replay). Simulation runs only in `playing`; the view animates in every state except `paused`.
+
 ## LevelRuntime
 
-`src/game/runtime/LevelRuntime.ts` is the unit of reset:
+Builds and owns one level: parses the map, bakes static ground/planks/spikes into a single texture (`core/bake.ts`, neighbour-aware edges per material), creates merged static bodies with **internal faces disabled** (no seam snags), one-way 12 px planks, the goal (can hang from ceilings), and every trap. `reset()` restores gravity, goal and traps deterministically; `destroy()` frees all.
 
-- Parses the level def once; builds tile solids, goal, spawn, and every trap instance via the trap registry.
-- Owns all physics colliders and trap-owned timers/tweens.
-- `reset()` restores every trap to `dormant`, re-arms triggers, resets moving parts and gravity — deterministic, no leaked callbacks.
-- `destroy()` on scene shutdown frees everything.
+## Traps
 
-This is what makes the <700 ms instant restart possible: death never re-boots Phaser.
+`TrapBase` lifecycle `dormant → armed → triggered → active → done`, with hooks `arm/fire/restore/teardown/onUpdate/onTriggered` (telegraph), `rearm()` for cycles, `suspicionPoint()` (what Pip may eye warily), `params.say` one-liners. Fifteen families in `traps/impl/` (`floors`, `hazards`, `platforms`, `goals`, `mechanisms`), mapped by `registry.ts`. Collision-relevant motion (walls, crushers, movers) is evaluated on the sim clock, never by tweens.
 
-## Trap engine
+## Pip
 
-- `TrapBase` (`src/game/traps/TrapBase.ts`): lifecycle enum, `update(dt)`, `onPlayerDead()`, trigger-condition evaluation (`area`, `proximity`, `jump`, `land`, `timer`, `chain`), kill/body queries.
-- Implementations in `traps/impl/` grouped by family: `floors`, `hazards`, `platforms`, `goals`, `mechanisms` (+`draw` helpers).
-- **Registry** (`traps/registry.ts`) maps `TrapType → constructor` — level defs reference types by string; no hardcoded level numbers anywhere in trap code.
-- Trap params (delay, speed, duration, reset behavior, `link`/`chain` targets, `onDeath` attempt gating) all come from the level definition.
+`entities/Player.ts` is an invisible 20×26 Arcade body (movement math in `physics/movement.ts`: accel/decel, coyote, buffer, armed jump-cut with 50 ms minimum, 1.22× fall gravity). `entities/PipView.ts` is the visual rig (parts from `pipArt.ts`, generated at 3× in `BootScene`): springs for squash/lean/sprout/hands/gaze, run cycle by distance, 14 expressions, blink, idle glances, death gags, dizzy respawn, celebrations. The rig never touches the hitbox.
 
-## Level data
+## Feedback
 
-ASCII-map DSL: 32 chars/row × 18 rows. Legend includes `#` solid, `.` empty, `P` spawn, `G` goal, and trap markers (`c` collapse, `s` hidden spikes, `f` fall block, `w` surprise wall, `v` conveyor, `m` mover anchor, `d` fake door, `y` shy goal, `p` pressure plate, `g` gravity pad, `r` spinner, `k` crusher, `e` timed plank, `t` teleport goal).
+`feedback/FeedbackManager.ts`: `GameplayEvent → profile → sfx + haptic + camera shake`. Per-event debounce, global haptic gap with priority override, gentle mode, reduced motion, shake sink attached/detached by the active scene. Haptics: `platform/native.ts` preloads `@capacitor/haptics` once and fires without awaiting.
 
-`parse.ts` merges solid cells into maximal horizontal runs (fewer physics bodies), extracts markers into a lookup, and `validate.ts` enforces: row/col counts, single spawn/goal, marker↔trap-def correspondence, reachability flood-fill, jump-apex sanity, known trap types. `npm run validate` fails CI on any fatal issue.
+## Rendering & layout
 
-## Player
+`core/view.ts` picks a backing resolution (≤ 2.5×) and a logical view width (960–1280) matching the screen aspect. Cameras zoom from the top-left; the 960-wide level is centred and side margins extend the world. HUD, overlays and touch pads live in view space (scroll factor 0). Text renders at the backing resolution.
 
-`Player.ts` wraps an Arcade body: horizontal accel/decel via `nextVelocityX`, coyote/buffer via `JumpAssist` (both pure, in `physics/movement.ts`), variable jump via `applyJumpCut` on release, gravity-flip support (all math parameterized by gravity sign). Input is an `InputState` struct — the same struct is produced by keyboard *and* `TouchControls` (multitouch zones, scalable, edge-detection), so gameplay code is input-agnostic.
+## Worlds & UI
 
-## Services
+`world/Backdrop.ts` paints each chapter (baked layers + a few owned ambient animations). `ui/widgets.ts` is the UI kit (tactile buttons, icon buttons, toggles, sliders, panels, toasts); `ui/transition.ts` the single scene transition; `anim/motion.ts` the shared durations/eases.
 
-- `storage.ts` — `KVStore` interface; web uses `localStorage`, native uses `@capacitor/preferences`. Saves are JSON, versioned (`version: 1`), and `decodeSave` sanitizes every field (clamps ranges, drops malformed records, recovers from corruption).
-- `progress.ts` — attempt/completion recording, sequential unlock, chapter-complete events.
-- `achievements.ts` — declarative achievement defs evaluated against save + gameplay events.
-- `challenge.ts` — `OTF-` codec; `shareCard.ts` — canvas renderer for the failure card.
-- `services.ts` (game/core) — a tiny context object wiring storage+save+settings, created at boot; scenes read it rather than touching globals.
+## Services & platform
 
-## Platform adapter
-
-`src/platform/native.ts` exposes `PlatformAdapter` with `haptic()`, `shareCard()`, `onBack()`, `safeArea`, `isNative`. Web implementation is a no-op/clipboard fallback; native uses Haptics/Share/App plugins. Nothing else in the codebase imports `@capacitor/*`.
-
-## Audio
-
-`audio/synth.ts` synthesizes every sound (jump, land, spike, splat, pop, door, victory, UI) from oscillators/noise through WebAudio — zero audio files. `AudioManager` gates on first user gesture (mobile unlock), respects music/SFX sliders, suspends on `visibilitychange`/`pause` events.
-
-## Performance design
-
-- One texture atlas of procedurally generated sprites; no external image loads at runtime.
-- Solids merged into run-length bodies; trap kill checks use precomputed rects; per-frame allocations avoided (reused `Rect`/`InputState` objects).
-- Particle bursts are short-lived `Graphics`-based emitters, pooled by Phaser.
-- Physics is fixed-step Arcade; `fps.target` unset (vsync-driven).
-- Measured (desktop Chrome, headed): ~60 FPS avg, p1 ≈ 56.8 — see `docs/TEST_REPORT.md`.
-
-## Known extension points (v1 intentionally unimplemented)
-
-- **Monetization**: `services/` would host a rewarded-ads adapter behind `PlatformAdapter`; no SDK imported.
-- **Deep links for challenges**: codec is URI-ready (`OTF-` codes); add `universalLinks`/`App Links` config when a domain exists.
-- **Cosmetics**: character texture generation is parameterized; palette variants can ship as data.
+Unchanged contract: services are pure TS (save/progress/achievements/challenge/share card); only `platform/native.ts` imports Capacitor. Audio is synthesized (`audio/synth.ts`, compressor-mixed, voice-capped); `AudioManager` runs a lookahead music sequencer with one style per chapter and resumes after iOS interruptions.
