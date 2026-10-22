@@ -42,7 +42,7 @@ export const defaultSettings = (): SettingsData => ({
   reducedMotion: false,
   controlScale: 1,
   controlSpread: false,
-  controlOpacity: 0.7,
+  controlOpacity: 0.6,
   shake: true,
   gentle: false,
   highContrast: false,

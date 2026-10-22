@@ -19,9 +19,16 @@ for (const [name, idx, prog, opts = {}] of shots) {
     await page.waitForTimeout(opts.wait ?? 900);
   } else {
     await page.evaluate(([i, p]) => window.__otfSim.run(i, p || '_1', { settle: false, tail: 0 }), [idx, prog]);
-    // render a few real frames without advancing gameplay
-    await page.evaluate(() => { const s = window.__otf.scene.getScene('Game'); s.ctl.scripted = { dir: 0, jumpDown: false, jumpHeld: false }; });
-    await page.evaluate(() => { for (let i = 0; i < (window.__shotFrames ?? 1); i++) window.__otf.loop.step(performance.now()); });
+    // optional extra sim frames (e.g. let a ribbon animate in), then an
+    // optional scene action, then render exactly one real frame
+    await page.evaluate(([after, action]) => {
+      const s = window.__otf.scene.getScene('Game');
+      s.ctl.scripted = { dir: 0, jumpDown: false, jumpHeld: false };
+      if (action === 'pause') s.togglePause();
+      if (action === 'settings') { s.togglePause(); s.openSettings?.call(s); }
+      window.__otfSim.step(after || 0);
+      window.__otf.step(performance.now(), 16.7);
+    }, [opts.after ?? 0, opts.action ?? null]);
   }
   await page.screenshot({ path: `${outDir}/${name}.png` });
   await ctx.close();

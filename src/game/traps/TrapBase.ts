@@ -231,6 +231,14 @@ export abstract class Trap {
     this.teardown();
   }
 
+  /**
+   * A visibly suspicious spot (e.g. a cracked floor) Pip may eye warily as
+   * he approaches. Only ever points at tells the player can already see.
+   */
+  suspicionPoint(): { x: number; y: number } | null {
+    return null;
+  }
+
   /** Number of pending sim timers (diagnostics / leak tests). */
   get pendingTimers(): number {
     return this.simTimers.length;

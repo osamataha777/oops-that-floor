@@ -103,7 +103,7 @@ export class TouchControls extends Phaser.GameObjects.Container {
   constructor(scene: Phaser.Scene, im: InputManager, settings: SettingsData) {
     super(scene);
     this.im = im;
-    this.opacity = settings.controlOpacity ?? 0.7;
+    this.opacity = settings.controlOpacity ?? 0.6;
     this.setDepth(40);
     this.build(settings);
     this.setScrollFactor(0, 0, true);
@@ -196,6 +196,27 @@ export class TouchControls extends Phaser.GameObjects.Container {
     for (const b of this.buttons) b.draw(this.counts[b.control] > 0);
   }
 
+  private hints: Phaser.GameObjects.GameObject[] = [];
+
+  /** First-play teaching: a soft pulsing ring + label around a pad. */
+  hint(control: Control, label: string): void {
+    const c = this.centers[control];
+    if (!c) return;
+    const ring = this.scene.add.circle(c.x, c.y, c.r + 6).setStrokeStyle(4, 0xfffaf0, 0.9).setFillStyle(0xfffaf0, 0.08);
+    const t = this.scene.add.text(c.x, c.y - c.r - 22, label, { fontFamily: 'ui-rounded, system-ui, sans-serif', fontSize: '16px', fontStyle: '800', color: '#fffaf0', stroke: '#2c2622', strokeThickness: 5 }).setOrigin(0.5);
+    this.add([ring, t]);
+    this.scene.tweens.add({ targets: ring, scale: 1.12, alpha: 0.4, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.hints.push(ring, t);
+  }
+
+  clearHints(): void {
+    for (const h of this.hints) {
+      this.scene.tweens.killTweensOf(h);
+      h.destroy();
+    }
+    this.hints = [];
+  }
+
   /** Diagnostics for tests. */
   get heldCount(): number {
     return this.held.size;
@@ -211,7 +232,7 @@ export class TouchControls extends Phaser.GameObjects.Container {
     const W = VIEW.w;
     const H = GAME_HEIGHT;
     const r = 44 * s;
-    const padB = 30 + toL(insets.bottom);
+    const padB = 8 + toL(insets.bottom); // pads sit on the ground strip, below Pip
     const padL = 26 + toL(insets.left);
     const padR = 26 + toL(insets.right);
     const gap = (spread ? 46 : 22) * s;

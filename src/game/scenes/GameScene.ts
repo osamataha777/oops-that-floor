@@ -141,6 +141,7 @@ export class GameScene extends Phaser.Scene {
     services.feedback.attachShake((ms, k) => this.cameras.main.shake(ms, k));
 
     this.buildHud();
+    this.maybeTeach();
     cam.fadeIn(MOTION.scene.fadeIn);
     this.showIntro();
     this.startedAt = this.time.now;
@@ -214,6 +215,7 @@ export class GameScene extends Phaser.Scene {
     const firstOfChapter = this.def.index === 1;
     const cx = VIEW.w / 2;
     const c = this.add.container(cx, firstOfChapter ? 150 : 86).setDepth(45).setScrollFactor(0, 0, true).setAlpha(0);
+    this.introBanner = c;
     if (firstOfChapter) {
       const t1 = this.add.text(0, -22, `Chapter ${this.def.chapter}`, { ...TXT.small, fontSize: '16px', color: '#fffaf0' }).setOrigin(0.5);
       const t2 = this.add.text(0, 8, theme.name, { ...TXT.h1, fontSize: '40px', color: '#fffaf0', stroke: '#2c2622', strokeThickness: 8 }).setOrigin(0.5);
@@ -241,7 +243,32 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private teaching: { moved: number; jumped: boolean } | null = null;
+
+  /** First-ever play of 1-1: teach the controls in place, then get out of the way. */
+  private maybeTeach(): void {
+    if (this.def.id !== '1-1' || (services.save.levels['1-1']?.totalAttempts ?? 0) > 0 || services.save.levels['1-1']?.completed) return;
+    this.teaching = { moved: 0, jumped: false };
+    if (this.touchUI) {
+      this.touchUI.hint('R', 'hold');
+      this.touchUI.hint('J', 'tap');
+    } else {
+      toast(this, '← →  move      Space  jump', { y: GAME_HEIGHT - 30, hold: 6000, depth: 44 });
+    }
+  }
+
+  private tickTeaching(dt: number, input: { dir: number; jumpDown: boolean }): void {
+    if (!this.teaching) return;
+    if (input.dir !== 0) this.teaching.moved += dt;
+    if (input.jumpDown) this.teaching.jumped = true;
+    if (this.teaching.moved > 600 && this.teaching.jumped) {
+      this.teaching = null;
+      this.touchUI?.clearHints();
+    }
+  }
+
   private tipShown = false;
+  private introBanner: Phaser.GameObjects.Container | null = null;
   private showTip(tip: string): void {
     if (this.tipShown) return;
     this.tipShown = true;
@@ -255,6 +282,7 @@ export class GameScene extends Phaser.Scene {
     // arming during the intro and makes death a clean freeze-frame.
     if (this.state === 'playing') {
       const input = this.ctl.poll();
+      this.tickTeaching(dt, input);
       this.player.update(dt, input);
       this.runtime.update(dt);
       this.simMs += dt;
@@ -264,7 +292,25 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Pip glances at the exit when it's near and in view (unless reacting). */
+  private eyed = new Set<string>();
+
   private updateGaze(): void {
+    // Personality: a wary glance at visibly cracked floor just ahead — once
+    // per trap per attempt, and only at tells the player can already see.
+    const ahead = this.player.facing;
+    for (const t of this.runtime.traps) {
+      if (this.eyed.has(t.id)) continue;
+      const sp = t.suspicionPoint();
+      if (!sp) continue;
+      const dx = (sp.x - this.player.x) * ahead;
+      if (dx > 30 && dx < 120 && Math.abs(sp.y - this.player.y) < 70) {
+        this.eyed.add(t.id);
+        this.player.view.express('suspicious', 650);
+        this.player.view.lookAt(sp);
+        this.time.delayedCall(650, () => this.player?.view.lookAt(null));
+        return;
+      }
+    }
     const g = this.runtime.goal;
     const gx = g.x + g.w / 2;
     const gy = g.y + g.h / 2;
@@ -312,6 +358,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private restoreLevel(dizzy: boolean): void {
+    this.eyed.clear();
     this.runtime.reset();
     const sp = this.runtime.parsed.spawn;
     this.player.revive(sp.x, sp.y, dizzy && this.deathsThisVisit > 0);
@@ -460,6 +507,11 @@ export class GameScene extends Phaser.Scene {
     // Only live play can pause — intro, dying and complete are excluded so no
     // overlay can ever capture an in-flight respawn or level transition.
     if (!this.go('paused')) return;
+    if (this.introBanner?.active) {
+      this.tweens.killTweensOf(this.introBanner);
+      this.introBanner.destroy();
+    }
+    this.introBanner = null;
     this.physics.world.pause();
     this.tweens.pauseAll();
     this.touchUI?.setEnabled(false);

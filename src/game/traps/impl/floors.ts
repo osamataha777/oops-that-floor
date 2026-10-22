@@ -65,6 +65,12 @@ export class CollapseTrap extends Trap {
     });
   }
 
+  override suspicionPoint(): { x: number; y: number } | null {
+    if (this.state !== 'armed' || (this.def.params?.tell ?? 'crack') !== 'crack' || !this.cellG.length) return null;
+    const c = this.cellG[0].cell;
+    return { x: c.x + c.w / 2, y: c.y };
+  }
+
   protected restore(): void {
     for (const p of this.cellG) {
       this.ctx.scene.tweens.killTweensOf(p.g);
