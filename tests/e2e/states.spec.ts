@@ -14,10 +14,9 @@ const game = (page: import('@playwright/test').Page) =>
 test.describe('gameplay state machine', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('canvas');
-    await page.waitForTimeout(1400);
+    await page.waitForFunction(() => (window as any).__otf?.scene?.isActive('Menu'), null, { timeout: 20000 });
     await page.evaluate(() => (window as any).__otf.scene.start('Game', { index: 0 }));
-    await page.waitForTimeout(700);
+    await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game')?.state === 'playing', null, { timeout: 10000 });
   });
 
   test('pause is ignored while dying (no respawn-behind-overlay)', async ({ page }) => {
@@ -46,9 +45,9 @@ test.describe('gameplay state machine', () => {
       const s = (window as any).__otf.scene.getScene('Game') as any;
       s.player.y = s.runtime.parsed.height + 300;
     });
-    await page.waitForTimeout(150); // mid-anim
+    await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game').state === 'dying', null, { timeout: 5000 });
     await page.keyboard.press('r');
-    await page.waitForTimeout(400);
+    await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game').state === 'playing', null, { timeout: 5000 });
     const g = await game(page);
     expect(g.state).toBe('playing');
     expect(g.attempt).toBe(2);
@@ -56,16 +55,14 @@ test.describe('gameplay state machine', () => {
 
   test('pause → resume restores playing', async ({ page }) => {
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
-    expect((await game(page)).state).toBe('paused');
+    await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game').state === 'paused', null, { timeout: 5000 });
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
-    expect((await game(page)).state).toBe('playing');
+    await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game').state === 'playing', null, { timeout: 5000 });
   });
 
   test('challenge payload reaches the game scene', async ({ page }) => {
     await page.evaluate(() => (window as any).__otf.scene.start('Game', { index: 10, challengeDeaths: 3 }));
-    await page.waitForTimeout(700);
+    await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game')?.def?.id === '2-3', null, { timeout: 10000 });
     const d = await page.evaluate(() => (window as any).__otf.scene.getScene('Game').challengeDeaths);
     expect(d).toBe(3);
   });

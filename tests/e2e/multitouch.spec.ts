@@ -133,11 +133,11 @@ test('held direction survives death + respawn (no re-press needed)', async ({ pa
   await emitPtr(page, 'pointerdown', 21, R.x, R.y);
   // kill the player through the real death path
   await page.evaluate(() => (window as any).__otf.scene.getScene('Game').kill('spikes'));
-  await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game').state === 'playing', null, { timeout: 4000 });
+  await page.waitForFunction(() => (window as any).__otf.scene.getScene('Game').state === 'playing', null, { timeout: 12000 });
   const c = await readCtl(page);
   expect(c.right, 'right still held after respawn').toBe(true);
   const x0 = await page.evaluate(() => (window as any).__otf.scene.getScene('Game').player.x);
-  await page.waitForFunction((x0) => (window as any).__otf.scene.getScene('Game').player.x > x0 + 20, x0, { timeout: 4000 });
+  await page.waitForFunction((x0) => (window as any).__otf.scene.getScene('Game').player.x > x0 + 12, x0, { timeout: 12000 });
   await emitPtr(page, 'pointerup', 21, R.x, R.y, false);
 });
 

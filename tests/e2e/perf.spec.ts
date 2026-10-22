@@ -6,6 +6,8 @@ import { test, expect } from '@playwright/test';
  * Budgets are aspirational targets; the console output is the report.
  */
 test.describe.configure({ mode: 'serial' });
+// Wall-clock measurement: opt-in (PERF=1). Deterministic numbers: scripts/perf.mjs.
+test.skip(!process.env.PERF, 'set PERF=1 to run the wall-clock perf probe');
 test.setTimeout(120000);
 
 test('startup, frame time, restart latency, memory stability', async ({ page }) => {
