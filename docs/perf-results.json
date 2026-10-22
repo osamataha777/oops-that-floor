@@ -1,0 +1,49 @@
+{
+ "resolution": 2.5,
+ "viewW": 960,
+ "logicMsPerFrame": {
+  "4-3": 0.051,
+  "5-5": 0.02,
+  "2-8": 0.017
+ },
+ "fullFrameMs": {
+  "p50": 2.5,
+  "p95": 3,
+  "p99": 3.5
+ },
+ "deathToControlMs": {
+  "p50": 300,
+  "p95": 300
+ },
+ "before200": {
+  "heapMB": 13.16,
+  "children": 69,
+  "tweens": 12,
+  "bodies": 24,
+  "timers": 0
+ },
+ "after200": {
+  "deaths": 200,
+  "heapMB": 13.53,
+  "children": 70,
+  "tweens": 3,
+  "bodies": 24,
+  "timers": 1
+ },
+ "levelLoads": {
+  "before": 13.53,
+  "after": 13.93,
+  "loadPlus30FramesMs": {
+   "p50": 15,
+   "max": 29.8
+  }
+ },
+ "rafLive": {
+  "mode": "headed",
+  "fps": 60.1,
+  "p95": 17.7
+ },
+ "menuReadyMs": 841,
+ "errors": [],
+ "when": "2026-10-22T06:23:16.431Z"
+}
